@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "sus"
+version = "0.1.0"
+description = "Python client library for the Sus protocol"
+authors = ["Romir Kulshrestha <romir.kulshrestha@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+blake3 = "^0.3.3"
+cryptography = "^41.0.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
