@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "sus"
+name = "suspycious"
 version = "0.1.0a"
 description = "Python client library for the Sus protocol"
 authors = ["Romir Kulshrestha <romir.kulshrestha@gmail.com>"]
