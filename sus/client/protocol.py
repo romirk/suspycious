@@ -1,17 +1,18 @@
 import asyncio
 import logging
-from typing import Any, Callable, Iterable, Optional
+from typing import Iterable, Optional
 
 from cryptography.hazmat.primitives import poly1305
 from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.ciphers.algorithms import ChaCha20
 
 from sus.common.globals import CLIENT_ENC_NONCE, CLIENT_MAC_NONCE, SERVER_ENC_NONCE, SERVER_MAC_NONCE
-from sus.common.util import ConnectionProtocolState, MessageHandler, Wallet, now, trail_off
+from sus.common.util import ConnectionState, MessageHandler, Wallet, now, trail_off
 
 
 class ClickerClientProtocol(asyncio.DatagramProtocol):
     transport: asyncio.DatagramTransport
+    state: ConnectionState
 
     def __init__(self, wallet: Wallet, protcol_id: bytes,
                  handlers: Optional[Iterable[MessageHandler]] = None):
@@ -19,7 +20,7 @@ class ClickerClientProtocol(asyncio.DatagramProtocol):
 
         self.wallet = wallet
         self.protocol_id = protcol_id
-        self.state = ConnectionProtocolState.INITIAL
+        self.state = ConnectionState.INITIAL
 
         self.logger = logging.getLogger(f"sus-cl")
 
@@ -46,9 +47,9 @@ class ClickerClientProtocol(asyncio.DatagramProtocol):
 
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
-        self.state = ConnectionProtocolState.HANDSHAKE
+        self.state = ConnectionState.HANDSHAKE
         self.send(self.protocol_id, self.wallet.token)
-        self.state = ConnectionProtocolState.CONNECTED
+        self.state = ConnectionState.CONNECTED
         self.last_seen = now()
         self.logger.debug("Handshake complete")
         self.handshake_event.set()
@@ -56,7 +57,7 @@ class ClickerClientProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data: bytes, addr: tuple[str, int]):
 
         match self.state:
-            case ConnectionProtocolState.CONNECTED:
+            case ConnectionState.CONNECTED:
                 pid, message = self.__verify_and_decrypt(data)
                 self.logger.info(f">>> {trail_off(message.decode('utf-8')) if message else None}")
                 self.handle_message(pid, message)
@@ -110,7 +111,7 @@ class ClickerClientProtocol(asyncio.DatagramProtocol):
         return packets
 
     def send(self, data: bytes, token: bytes = b""):
-        if self.state not in (ConnectionProtocolState.CONNECTED, ConnectionProtocolState.HANDSHAKE):
+        if self.state not in (ConnectionState.CONNECTED, ConnectionState.HANDSHAKE):
             return
         self.logger.info(f"<<< {trail_off(data.decode('utf-8'))}")
         packets = self.__encrypt_and_tag(data, token)
@@ -124,7 +125,7 @@ class ClickerClientProtocol(asyncio.DatagramProtocol):
 
     def connection_lost(self, exc):
         self.logger.warning("Connection to server lost")
-        self.state = ConnectionProtocolState.ERROR
+        self.state = ConnectionState.ERROR
         self.diconnection_event.set()
 
     def handle_message(self, pid, message):

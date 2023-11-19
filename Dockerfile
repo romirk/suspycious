@@ -12,4 +12,4 @@ COPY    . .
 RUN     --mount=type=secret,id=sus_secret_key \
         cat /run/secrets/sus_secret_key > ./server.key
 
-CMD     ["python", "server.py", "/usr/src/sus/server.key"]
+CMD     ["python", "-m", "sus", "server", "-k", "./server.key"]

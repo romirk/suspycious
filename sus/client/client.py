@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from sus.client.protocol import ClickerClientProtocol
 from sus.common.exceptions import MalformedPacket
-from sus.common.util import ConnectionProtocolState, MessageHandler, Wallet
+from sus.common.util import ConnectionState, MessageHandler, Wallet
 
 
 class SusClient:
@@ -28,7 +28,7 @@ class SusClient:
 
     @property
     def connected(self):
-        return hasattr(self, "protocol") and self.protocol.state == ConnectionProtocolState.CONNECTED
+        return hasattr(self, "protocol") and self.protocol.state == ConnectionState.CONNECTED
 
     async def start(self, handlers: Iterable[MessageHandler] = None):
         await self.connect()
