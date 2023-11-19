@@ -1,8 +1,8 @@
 import argparse
 import asyncio
 
-from clicker import SusServer
-from clicker.common.util import logger_config
+from sus import SusServer
+from sus.common.util import logger_config
 
 
 def main(key_file: str):

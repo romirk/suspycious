@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import logging
 
-from clicker import SusClient
-from clicker.common.util import Address, logger_config
+from sus import SusClient
+from sus.common.util import Address, logger_config
 
 logger = logging.getLogger("app")
 

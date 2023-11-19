@@ -11,9 +11,9 @@ from cryptography.hazmat.primitives.ciphers import AEADDecryptionContext, AEADEn
 from cryptography.hazmat.primitives.ciphers.algorithms import ChaCha20
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from clicker.common.exceptions import HandsakeError, MalformedPacket
-from clicker.common.globals import CLIENT_ENC_NONCE, CLIENT_MAC_NONCE, SERVER_ENC_NONCE, SERVER_MAC_NONCE
-from clicker.common.util import ConnectionProtocolState, MessageHandler, Wallet, now, trail_off
+from sus.common.exceptions import HandsakeError, MalformedPacket
+from sus.common.globals import CLIENT_ENC_NONCE, CLIENT_MAC_NONCE, SERVER_ENC_NONCE, SERVER_MAC_NONCE
+from sus.common.util import ConnectionProtocolState, MessageHandler, Wallet, now, trail_off
 
 
 class ClientHandler:

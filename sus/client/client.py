@@ -8,9 +8,9 @@ from blake3 import blake3
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from clicker.client.protocol import ClickerClientProtocol
-from clicker.common.exceptions import MalformedPacket
-from clicker.common.util import ConnectionProtocolState, MessageHandler, Wallet
+from sus.client.protocol import ClickerClientProtocol
+from sus.common.exceptions import MalformedPacket
+from sus.common.util import ConnectionProtocolState, MessageHandler, Wallet
 
 
 class SusClient:
@@ -21,7 +21,7 @@ class SusClient:
         self.ppks = X25519PublicKey.from_public_bytes(bytes.fromhex(ppks))
         self.protocol_id = protocol_id
 
-        self.logger = logging.getLogger(f"susclicker")
+        self.logger = logging.getLogger(f"sussus")
 
     def __del__(self):
         self.disconnect()

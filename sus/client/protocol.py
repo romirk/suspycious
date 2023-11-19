@@ -6,8 +6,8 @@ from cryptography.hazmat.primitives import poly1305
 from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.ciphers.algorithms import ChaCha20
 
-from clicker.common.globals import CLIENT_ENC_NONCE, CLIENT_MAC_NONCE, SERVER_ENC_NONCE, SERVER_MAC_NONCE
-from clicker.common.util import ConnectionProtocolState, MessageHandler, Wallet, now, trail_off
+from sus.common.globals import CLIENT_ENC_NONCE, CLIENT_MAC_NONCE, SERVER_ENC_NONCE, SERVER_MAC_NONCE
+from sus.common.util import ConnectionProtocolState, MessageHandler, Wallet, now, trail_off
 
 
 class ClickerClientProtocol(asyncio.DatagramProtocol):
@@ -21,7 +21,7 @@ class ClickerClientProtocol(asyncio.DatagramProtocol):
         self.protocol_id = protcol_id
         self.state = ConnectionProtocolState.INITIAL
 
-        self.logger = logging.getLogger(f"clicker-cl")
+        self.logger = logging.getLogger(f"sus-cl")
 
         self.last_seen = now()
 
