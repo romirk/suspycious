@@ -1,2 +1,2 @@
-mkdocstrings 
+mkdocstrings[python]
 mkdocs-material[imaging]
