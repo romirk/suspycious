@@ -1,16 +1,33 @@
 [tool.poetry]
 name = "sus"
-version = "0.1.0"
+version = "0.1.0a"
 description = "Python client library for the Sus protocol"
 authors = ["Romir Kulshrestha <romir.kulshrestha@gmail.com>"]
 readme = "README.md"
+repository = "https://github.com/romirk/suspycious"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Networking",
+    "Topic :: Security :: Cryptography",
+    "Typing :: Typed"
+]
+packages = [{ include = "sus" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10"
 blake3 = "^0.3.3"
 cryptography = "^41.0.5"
 
+[tool.poetry.scripts]
+sus = "sus.__main__:server_main"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/romirk/suspycious/issues"
 
