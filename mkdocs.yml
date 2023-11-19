@@ -2,6 +2,7 @@ site_name: Suspycious
 
 theme:
   name: material
+  language: en
   palette:
     # Palette toggle for dark mode
     - scheme: slate
@@ -21,6 +22,16 @@ theme:
         name: Switch to dark mode
   features:
     - content.action.view
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.path
+    - navigation.indexes
+    - toc.follow
+    # - toc.integrate
+    - navigation.top
+    - search.suggest
 
 repo_url: https://github.com/romirk/suspycious
 repo_name: suspycious
@@ -38,3 +49,23 @@ plugins:
 - mkdocstrings
 - social
 # - optimize  
+
+markdown_extensions:
+  - attr_list
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - md_in_html
+
+# extra_javascript:
+#   - js/shortcuts.js
