@@ -55,16 +55,21 @@ class ClientHandler:
 
     @property
     def is_alive(self):
+        """
+        True if the client is not in an error state and has been seen in the last 5 seconds.
+        """
         return self.__state not in (
             ConnectionState.ERROR, ConnectionState.DISCONNECTED
         ) and now() - self.__last_seen < 5
 
     @property
     def addr(self):
+        """Client address."""
         return self.__addr
 
     @property
     def last_seen(self):
+        """Last time the client was seen, in seconds since the epoch."""
         return self.__last_seen
 
     @property
@@ -198,6 +203,10 @@ class ClientHandler:
         raise NotImplementedError
 
     def handle(self, data: bytes):
+        """
+        Handles incoming packets.
+        :param data: packet data
+        """
         self.__last_seen = now()
 
         match self.__state:
@@ -213,6 +222,10 @@ class ClientHandler:
                 self.__error(data)
 
     async def send(self, data: bytes):
+        """
+        Sends a message to the client.
+        :param data: data to send
+        """
         if self.__state not in (ConnectionState.CONNECTED, ConnectionState.HANDSHAKE):
             return
         self.__logger.info(f"<<< {trail_off(data.decode('utf-8'))}")
@@ -221,5 +234,9 @@ class ClientHandler:
         for packet in packets:
             self.__transport.sendto(packet, self.__addr)
 
-    def add_message_handler(self, handler):
+    def add_message_handler(self, handler: MessageHandler):
+        """
+        Adds a message handler. This handler will be called when a message is received.
+        :param handler: Awaitable handler function
+        """
         self.__message_handlers.add(handler)

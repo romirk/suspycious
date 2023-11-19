@@ -65,6 +65,9 @@ class OnePortProtocol(asyncio.DatagramProtocol):
         self.__clients[addr].add_message_handler(handler)
 
     def clean(self):
+        """
+        Removes inactive clients.
+        """
         for addr in list(self.__clients.keys()):
             if not self.__clients[addr].is_alive:
                 del self.__clients[addr]

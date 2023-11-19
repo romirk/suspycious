@@ -20,6 +20,11 @@ class SusServer:
     __protocol: OnePortProtocol
 
     def __init__(self, addr: Address, psks: str):
+        """
+        Initializes the server.
+        :param addr: Tuple containing the address and port to listen on
+        :param psks: Hex encoded private key
+        """
         self.__addr = addr
         self.__logger = logging.getLogger("gatekeeper")
 
@@ -60,24 +65,34 @@ class SusServer:
 
         wallet = Wallet(ppks=self.__ppks, psks=self.__psks)
 
+        # create a protocol instance, this will handle all incoming packets
         _, self.__protocol = await asyncio.get_running_loop().create_datagram_endpoint(
             lambda: OnePortProtocol(wallet, message_handlers if message_handlers else []),
             self.__addr)
 
-        gc_task = None
+        # start the garbage collector.
+        gc_task = asyncio.create_task(self.__garbage_collector())
+
+        # we're done here, wait for the protocol to close.
         try:
-            gc_task = asyncio.create_task(self.__garbage_collector())
             await self.__protocol.closed.wait()
         except asyncio.CancelledError:
             self.__logger.info("Server stopped")
         finally:
-            if gc_task:
-                gc_task.cancel()
+            gc_task.cancel()
             self.__protocol.close()
 
     async def send(self, addr: Address, msg: bytes):
+        """
+        Sends a message to a client.
+        :param addr: Client address
+        :param msg: Message to send
+        """
         await self.__protocol.send(msg, addr)
 
     async def stop(self):
+        """
+        Stops the server.
+        """
         self.__logger.warning("Shutting down")
         self.__protocol.close()

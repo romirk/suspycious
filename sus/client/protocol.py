@@ -129,4 +129,4 @@ class ClickerClientProtocol(asyncio.DatagramProtocol):
         self.diconnection_event.set()
 
     def handle_message(self, pid, message):
-        asyncio.gather(*[handler(pid, message) for handler in self.message_handlers])
+        asyncio.gather(*[handler(("", 0), pid, message) for handler in self.message_handlers])
