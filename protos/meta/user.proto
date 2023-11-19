@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+message User {
+  uint64 userId = 1;
+  string username = 2;
+}

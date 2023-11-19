@@ -1,0 +1,34 @@
+syntax = "proto3";
+import "channel.proto";
+
+
+message JoinChannelRequest {
+  uint64 channelId = 1;
+}
+
+message LeaveChannelRequest {
+  uint64 channelId = 1;
+}
+
+message CreateChannelRequest {
+  uint64 cliqId = 1;
+  string name = 2;
+}
+
+message DeleteChannelRequest {
+  uint64 channelId = 1;
+}
+
+message GetChannelRequest {
+  uint64 channelId = 1;
+}
+
+message UpdateChannelRequest {
+  uint64 channelId = 1;
+  ChannelMeta meta = 2;
+}
+
+message ChangeChannelOwnerRequest {
+  uint64 channelId = 1;
+  uint64 userId = 2;
+}

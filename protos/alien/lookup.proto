@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+message LookupRequest {
+  string username = 1;
+}
+
+message LookupResponse {
+  uint64 userId = 1;
+  bytes salt = 2;
+}

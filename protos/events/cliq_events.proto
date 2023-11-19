@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package cliq.events;
+
+import "meta/cliq.proto";
+
+message CliqEvent {
+  oneof event {
+    CliqJoin join = 1;
+    CliqLeave leave = 2;
+    CliqCreate create = 3;
+    CliqDelete delete = 4;
+    CliqUpdate update = 5;
+  }
+}
+
+message CliqJoin {
+  uint64 cliqId = 1;
+  uint64 userId = 2;
+}
+
+message CliqLeave {
+  uint64 cliqId = 1;
+  uint64 userId = 2;
+}
+
+message CliqCreate {
+  uint64 cliqId = 1;
+}
+
+message CliqDelete {
+  uint64 cliqId = 1;
+}
+
+message CliqUpdate {
+  uint64 cliqId = 1;
+  oneof update {
+    Cliq.CliqMeta meta = 2;
+    uint64 ownerId = 3;
+  }
+}
+

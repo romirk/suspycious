@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+message Cliq {
+  uint64 cliqId = 1;
+
+  message CliqMeta {
+    string name = 1;
+    string description = 2;
+    uint64 created = 3;
+  }
+
+  message CliqMember {
+    uint64 userId = 1;
+    uint64 joined = 2;
+  }
+
+  message CliqMembers {
+    repeated CliqMember users = 1;
+    uint64 ownerId = 2;
+    repeated uint64 adminIds = 3;
+  }
+
+  CliqMeta meta = 2;
+  CliqMembers members = 3;
+  repeated uint64 channelIds = 4;
+}

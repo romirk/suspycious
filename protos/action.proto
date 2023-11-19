@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+message Action {
+  uint64 stamp = 1;
+  oneof action {
+    UserAction userAction = 2;
+    CliqAction cliqAction = 3;
+  }
+}
+
+message UserAction {
+  uint64 userId = 1;
+
+  enum ActionType {
+    BEFRIEND = 0;
+    UNFRIEND = 1;
+    BLOCK = 2;
+    UNBLOCK = 3;
+  }
+
+  ActionType action = 2;
+  optional uint64 target = 3;
+}
+
+
+message CliqAction {
+  uint64 cliqId = 1;
+  uint64 userId = 2;
+
+  enum ActionType {
+    JOIN = 0;
+    LEAVE = 1;
+  }
+  
+  ActionType type = 3;
+}

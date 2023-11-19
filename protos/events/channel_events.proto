@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package cliq.events;
+
+import "channel.proto";
+
+message ChannelEvent {
+  oneof event {
+    ChannelJoin join = 1;
+    ChannelLeave leave = 2;
+    ChannelCreate create = 3;
+    ChannelDelete delete = 4;
+    ChannelUpdate update = 5;
+  }
+}
+
+message ChannelJoin {
+  uint64 channelId = 1;
+  uint64 userId = 2;
+}
+
+message ChannelLeave {
+  uint64 channelId = 1;
+  uint64 userId = 2;
+}
+
+message ChannelCreate {
+  uint64 channelId = 1;
+  uint64 cliqId = 2;
+}
+
+message ChannelDelete {
+  uint64 channelId = 1;
+  uint64 cliqId = 2;
+}
+
+message ChannelUpdate {
+  uint64 channelId = 1;
+  oneof update{
+    cliq.meta.ChannelMeta meta = 2;
+    uint64 ownerId = 3;
+  }
+}

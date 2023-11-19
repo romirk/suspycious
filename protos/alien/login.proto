@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+
+message LoginRequest {
+  uint64 userId = 1;
+  uint64 deviceId = 2;
+  bytes signature = 3;
+}
+
+message LoginResponse {}

@@ -2,7 +2,7 @@ FROM    python:3.12.0
 
 WORKDIR /usr/src/sus
 
-RUN     apt update && apt install -y cargo
+RUN     apt update && apt install -y cargo && pip install -U cryptography blake3
 
 COPY    requirements.txt .
 RUN     pip install -r requirements.txt

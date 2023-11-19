@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+message RegisterRequest {
+    string username = 1;
+    bytes auth_key = 2;
+    bytes device_key = 3;
+    string display_name = 4;
+}
+
+message RegisterResponse {
+    uint64 user_id = 1;
+}

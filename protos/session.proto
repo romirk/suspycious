@@ -1,0 +1,13 @@
+syntax = "proto3";
+import "util.proto";
+
+
+message Sychronize {
+  optional uint64 cliqId = 1;
+  optional uint64 channelId = 2;
+  optional TimeRange range = 3;
+}
+
+message Logout {}
+
+

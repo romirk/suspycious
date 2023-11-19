@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+// Generic success/failure response
+message BooleanResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message ErrorResponse {
+  string error = 1;
+}

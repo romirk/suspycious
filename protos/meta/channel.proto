@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package cliq.meta;
+
+import "util.proto";
+
+
+message Channel {
+  uint64 channelId = 1;
+
+  ChannelMeta meta = 2;
+  ChannelUsers users = 3;
+  optional ChannelHistory history = 4;
+}
+
+message ChannelMeta {
+  optional string name = 1;
+  optional string description = 2;
+  optional bool isPublic = 3;
+  optional bool isReadOnly = 4;
+  optional bool isHidden = 5;
+}
+
+message ChannelUsers {
+  uint64 ownerId = 1;
+  repeated uint64 userIds = 2;
+}
+
+message ChannelHistory {
+  uint64 channelId = 1;
+
+  message Entry {
+    uint64 stamp = 1;
+    oneof content {
+      ChannelMessage message = 2;
+      ChannelAction action = 3;
+      ChannelMod mod = 4;
+    }
+  }
+
+  optional TimeRange range = 2;
+
+  repeated Entry entries = 3;
+}
+
+
+message ChannelMod {
+  uint64 stamp = 1;
+  uint64 channelId = 2;
+  uint64 userId = 3;
+
+  ChannelMeta meta = 5;
+}
+
+message ChannelMessage {
+  uint64 stamp = 1;
+  uint64 channelId = 2;
+  uint64 userId = 3;
+
+  enum MessageType {
+    TEXT = 0;
+    IMAGE = 1;
+    VIDEO = 2;
+    AUDIO = 3;
+    FILE = 4;
+  }
+
+  MessageType type = 4;
+  oneof content {
+    string text = 5;
+    string image = 6;
+    string video = 7;
+    string audio = 8;
+    string file = 9;
+  }
+}
+
+message ChannelAction {
+  uint64 stamp = 1;
+  uint64 channelId = 2;
+  uint64 userId = 3;
+
+  enum Type {
+    JOIN = 0;
+    LEAVE = 1;
+    BAN = 2;
+    UNBAN = 3;
+  }
+
+  Type type = 4;
+  optional uint64 targetUserId = 5;
+  //  optional string reason = 6; ???
+}
+
+
+

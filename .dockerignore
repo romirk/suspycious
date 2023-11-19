@@ -1,0 +1,7 @@
+*
+!sus/*.py
+__pycache__/
+!server.pub
+!LICENSE
+!README.md
+!requirements.txt
