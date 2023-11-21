@@ -16,11 +16,13 @@ RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root
 FROM   python:3.12-slim-bookworm as runtime
 
 ENV VIRTUAL_ENV=/usr/src/sus/.venv \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/usr/src/sus/.venv/bin:$PATH"
 
+WORKDIR /usr/src/sus
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-COPY    sus README.md LICENSE ./
+COPY    README.md LICENSE ./
+COPY    sus ./sus
 RUN     --mount=type=secret,id=sus_secret_key \
         cat /run/secrets/sus_secret_key > ./server.key
 

@@ -12,6 +12,8 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sus.common.util import Address, MessageHandler, Wallet
 from sus.server.protocol import OnePortProtocol
 
+GARABAGE_COLLECTOR_INTERVAL = 30  # seconds
+
 
 class SusServer:
     """
@@ -50,7 +52,7 @@ class SusServer:
         """
         try:
             while not self.__protocol.closed.is_set():
-                await asyncio.sleep(10)
+                await asyncio.sleep(GARABAGE_COLLECTOR_INTERVAL)
                 self.__protocol.clean()
         except asyncio.CancelledError:
             pass
@@ -82,13 +84,13 @@ class SusServer:
             gc_task.cancel()
             self.__protocol.close()
 
-    async def send(self, addr: Address, msg: bytes):
+    def send(self, addr: Address, msg: bytes):
         """
-        Sends a message to a client.
+        Schedules a message to be sent to a client.
         :param addr: Client address
         :param msg: Message to send
         """
-        await self.__protocol.send(msg, addr)
+        self.__protocol.send(msg, addr)
 
     async def stop(self):
         """

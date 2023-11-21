@@ -56,11 +56,11 @@ class OnePortProtocol(asyncio.DatagramProtocol):
             self.__logger.error(f"Malformed packet from {addr}")
             del self.__clients[connection_id]
 
-    async def send(self, data: bytes, addr: tuple[str, int]):
+    def send(self, data: bytes, addr: tuple[str, int]):
         if addr not in self.__clients:
             self.__logger.error(f"Attempted to send to {addr} but they are not connected")
             return
-        await self.__clients[self.__addr_to_conn_id[addr]].send(data)
+        self.__clients[self.__addr_to_conn_id[addr]].send(data)
 
     def add_message_handler(self, handler: MessageHandler, addr: tuple[str, int]):
         self.__clients[self.__addr_to_conn_id[addr]].add_message_handler(handler)
@@ -69,9 +69,15 @@ class OnePortProtocol(asyncio.DatagramProtocol):
         """
         Removes inactive clients.
         """
-        for addr in list(self.__clients.keys()):
-            if not self.__clients[addr].is_alive:
-                del self.__clients[addr]
+        for addr, conn_id in list(self.__addr_to_conn_id.items()):
+            client = self.__clients.get(conn_id, None)
+            if client is None:
+                del self.__addr_to_conn_id[addr]
+                continue
+            if not client.is_alive:
+                self.__logger.warning(f"Removing inactive client {addr}")
+                del self.__addr_to_conn_id[addr]
+                del self.__clients[conn_id]
 
     def close(self):
         self.__transport.close()

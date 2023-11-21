@@ -1,5 +1,5 @@
 *
-!sus/*.py
+!sus/
 __pycache__/
 !server.pub
 !pyproject.toml

@@ -59,6 +59,8 @@ class ClientHandler:
         self.__incoming_keys: collections.deque[bytes] = collections.deque(maxlen=max_packets)
         self.__pending_message_length = 0
         self.__pending_message_buffer = bytearray()
+        self.__outgoing_buffer: bytearray = bytearray()
+        self.__send_loop_task: asyncio.Task = asyncio.create_task(self.__send_loop())
 
     @property
     def is_alive(self):
@@ -90,6 +92,11 @@ class ClientHandler:
     @property
     def connection_id(self):
         return self.__connection_id
+
+    async def __send_loop(self):
+        while True:
+            await asyncio.sleep(1)
+            self.__flush()
 
     def __gen_connection_id(self, channel_id: int = 0) -> ConnectionID:
         wallet = self.__wallet
@@ -312,18 +319,30 @@ class ClientHandler:
             case ConnectionState.ERROR:
                 self.__error(data)
 
-    async def send(self, data: bytes):
+    def __flush(self):
         """
-        Sends a message to the client.
+        Flushes the outgoing buffer, sending all pending messages.
+        Sends multiple packets if necessary. Sends an empty packet if there is no data to send.
+        """
+        packets = self.__encrypt_and_tag(self.__outgoing_buffer or b"\x00")
+        self.__logger.info(f"Sending {len(self.__outgoing_buffer)} bytes in {len(packets)} packets")
+        for packet in packets:
+            self.__transport.sendto(packet, self.__addr)
+        self.__outgoing_buffer.clear()
+
+    def send(self, data: bytes):
+        """
+        Schedule a message to be sent to the client.
         :param data: data to send
         """
         if self.__state not in (ConnectionState.CONNECTED, ConnectionState.HANDSHAKE):
             return
         self.__logger.info(f"<<< {trail_off(data.decode('utf-8'))}")
-        packets = self.__encrypt_and_tag(data)
-        self.__logger.info(f"Sending {len(data)} bytes in {len(packets)} packets")
-        for packet in packets:
-            self.__transport.sendto(packet, self.__addr)
+        self.__outgoing_buffer.extend(data)
+
+    def __send_now(self, data: bytes):
+        self.__outgoing_buffer.extend(data)
+        self.__flush()
 
     def add_message_handler(self, handler: MessageHandler):
         """

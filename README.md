@@ -33,7 +33,7 @@ server = SusServer(('localhost', 5000), b"my secret key.".hex())
 
 async def message_handler(addr: Address, p_id: int, message: bytes):
     print(f"Received message from {addr}: {message.decode()}")
-    await server.send(addr, b"Hello from the server!")
+    server.send(addr, b"Hello from the server!")
 
 
 asyncio.run(server.start([message_handler]))
