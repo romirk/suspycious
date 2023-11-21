@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "suspycious"
-version = "0.1.0a"
+version = "0.1.1a0"
 description = "Python client library for the Sus protocol"
 authors = ["Romir Kulshrestha <romir.kulshrestha@gmail.com>"]
 readme = "README.md"

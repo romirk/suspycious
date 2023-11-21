@@ -96,7 +96,12 @@ class ClientHandler:
 
         # figure out a way to determinisitically generate connection_id
         # for now, this just hashes the shared secret with the channel ID
-        return int.from_bytes(blake3(wallet.shared_secret + int.to_bytes(channel_id))[:8], "little")
+        return int.from_bytes(
+            blake3(
+                wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) +
+                wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) +
+                int.to_bytes(channel_id)
+            ).digest()[:8], "little", signed=False)
 
     def __key_exchange(self):
         wallet = self.__wallet
@@ -116,8 +121,6 @@ class ClientHandler:
 
         for i in range(self.max_packets):
             self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
-
-        self.__connection_id = self.__gen_connection_id()
 
     def __reform_messages(self, data: bytes) -> [bytes]:
         buffer = self.__pending_message_buffer + data
@@ -223,8 +226,10 @@ class ClientHandler:
         wallet.epkc = X25519PublicKey.from_public_bytes(data[:32])
         wallet.nc = data[32:]
 
+        self.__connection_id = self.__gen_connection_id()
         self.__state = ConnectionState.HANDSHAKE
         self.__transport.sendto((wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) + wallet.ns), self.__addr)
+        self.__logger.info(f"connection ID: {self.__connection_id}")
 
     def __handshake(self, data) -> None:
         if len(data) < 40:
