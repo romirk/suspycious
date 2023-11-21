@@ -2,6 +2,8 @@
 !sus/*.py
 __pycache__/
 !server.pub
+!pyproject.toml
+!poetry.lock
 !LICENSE
 !README.md
 !requirements.txt
