@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from logging import DEBUG, basicConfig
-from typing import Any, Awaitable, Callable, Optional, Type
+from typing import Any, Awaitable, Callable, Optional, Type, TypeAlias
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 
@@ -65,6 +65,9 @@ class Wallet:
     """Verification token"""
     shared_secret: Optional[bytes] = None
     """Shared secret"""
+
+
+ConnectionID: TypeAlias = int
 
 
 class ConnectionState(Enum):

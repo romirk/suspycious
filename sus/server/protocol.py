@@ -6,7 +6,7 @@ import logging
 from typing import Iterable
 
 from sus.common.exceptions import HandsakeError, MalformedPacket
-from sus.common.util import MessageHandler, Wallet
+from sus.common.util import Address, ConnectionID, MessageHandler, Wallet
 from sus.server.handler import ClientHandler
 
 
@@ -22,7 +22,8 @@ class OnePortProtocol(asyncio.DatagramProtocol):
         self.__wallet = wallet
         self.__message_handlers = message_handlers
 
-        self.__clients: dict[tuple[str, int], ClientHandler] = dict()
+        self.__addr_to_conn_id: dict[Address, ConnectionID] = dict()
+        self.__clients: dict[ConnectionID, ClientHandler] = dict()
         self.__logger = logging.getLogger(f"OnePort")
 
         self.closed = asyncio.Event()
@@ -35,34 +36,34 @@ class OnePortProtocol(asyncio.DatagramProtocol):
         self.__logger.exception(exc)
 
     def datagram_received(self, data, addr):
-        if addr not in self.__clients:
+        if addr not in self.__addr_to_conn_id:
             try:
                 c = ClientHandler(addr, self.__transport, self.__wallet, self.__message_handlers)
+                c.handle(data)
             except (HandsakeError, MalformedPacket):
                 self.__logger.error(f"Handshake failed with {addr}")
                 return
-            self.__clients[addr] = c
+            self.__addr_to_conn_id[addr] = c.connection_id
+            self.__clients[c.connection_id] = c
+            return
 
-        handler = self.__clients[addr]
+        connection_id = self.__addr_to_conn_id[addr]
+        handler = self.__clients[connection_id]
 
         try:
             handler.handle(data)
-        except HandsakeError:
-            self.__logger.error(f"Handshake failed with {addr}")
-            del self.__clients[addr]
-            self.close()
         except MalformedPacket:
             self.__logger.error(f"Malformed packet from {addr}")
-            del self.__clients[addr]
+            del self.__clients[connection_id]
 
     async def send(self, data: bytes, addr: tuple[str, int]):
         if addr not in self.__clients:
             self.__logger.error(f"Attempted to send to {addr} but they are not connected")
             return
-        await self.__clients[addr].send(data)
+        await self.__clients[self.__addr_to_conn_id[addr]].send(data)
 
     def add_message_handler(self, handler: MessageHandler, addr: tuple[str, int]):
-        self.__clients[addr].add_message_handler(handler)
+        self.__clients[self.__addr_to_conn_id[addr]].add_message_handler(handler)
 
     def clean(self):
         """

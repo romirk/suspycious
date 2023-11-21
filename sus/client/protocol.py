@@ -132,8 +132,8 @@ class SusClientProtocol(asyncio.DatagramProtocol):
         """
         message_bytes = len(data).to_bytes(4, "little") + data
         packet_length = self.mtu_estimate - 24
-        padded_message_bytes = message_bytes + b"\x00" * (
-                packet_length - ((len(message_bytes) + len(token)) % packet_length))
+        padded_message_bytes = message_bytes  # + b"\x00" * (
+        # packet_length - ((len(message_bytes) + len(token)) % packet_length))
 
         ciphertext = self.cl_enc.update(padded_message_bytes)
         self.logger.debug(f"--- {trail_off(ciphertext.hex())}")

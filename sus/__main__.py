@@ -32,7 +32,8 @@ if __name__ == "__main__":
         from sus.client import SusClient
 
         logger_config()
-        client = SusClient((args.server, int(args.port)), open(args.public_key, "r").read(), args.application_protocol)
+        client = SusClient((args.server, int(args.port)), open(args.public_key, "r").read(), b"fuckyou")
         asyncio.run(client.start())
+        client.send(b"fuckyou" * 3000)
     else:
         server_main()
