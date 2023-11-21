@@ -50,3 +50,7 @@ asyncio.run(client.start())
 client.send(b"Hello from the client!")
 ```
 
+## Documentation
+
+The documentation is available [here](https://romirk.github.io/suspycious/).
+

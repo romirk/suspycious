@@ -21,8 +21,9 @@ ENV VIRTUAL_ENV=/usr/src/sus/.venv \
 WORKDIR /usr/src/sus
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-COPY    README.md LICENSE ./
 COPY    sus ./sus
+COPY    README.md LICENSE ./
+
 RUN     --mount=type=secret,id=sus_secret_key \
         cat /run/secrets/sus_secret_key > ./server.key
 
