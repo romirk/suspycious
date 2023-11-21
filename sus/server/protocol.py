@@ -24,7 +24,7 @@ class OnePortProtocol(asyncio.DatagramProtocol):
 
         self.__addr_to_conn_id: dict[Address, ConnectionID] = dict()
         self.__clients: dict[ConnectionID, ClientHandler] = dict()
-        self.__logger = logging.getLogger(f"OnePort")
+        self.__logger = logging.getLogger(f"oneportsus")
 
         self.closed = asyncio.Event()
 
@@ -83,5 +83,5 @@ class OnePortProtocol(asyncio.DatagramProtocol):
         self.__transport.close()
 
     def connection_lost(self, exc):
-        self.__logger.info("Connection closed")
+        self.__logger.warning("Connection closed")
         self.closed.set()

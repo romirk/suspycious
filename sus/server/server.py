@@ -79,10 +79,9 @@ class SusServer:
         try:
             await self.__protocol.closed.wait()
         except asyncio.CancelledError:
-            self.__logger.info("Server stopped")
+            self.stop()
         finally:
             gc_task.cancel()
-            self.__protocol.close()
 
     def send(self, addr: Address, msg: bytes):
         """
@@ -92,7 +91,7 @@ class SusServer:
         """
         self.__protocol.send(msg, addr)
 
-    async def stop(self):
+    def stop(self):
         """
         Stops the server.
         """
