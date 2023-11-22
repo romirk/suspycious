@@ -6,7 +6,7 @@ from sus.common.util import logger_config
 
 def server_main():
     logger_config()
-    server = SusServer(("0.0.0.0", args.port), open(args.private_key, "r").read())
+    server = SusServer(("0.0.0.0", args.port), open(args.private_key, "r").read().strip())
     asyncio.run(server.start())
 
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         from sus.client import SusClient
 
         logger_config()
-        client = SusClient((args.server, int(args.port)), open(args.public_key, "r").read(), b"fuckyou")
+        client = SusClient((args.server, int(args.port)), open(args.public_key, "r").read().strip(), b"fuckyou")
         asyncio.run(client.start())
         client.send(b"fuckyou" * 3000)
     else:

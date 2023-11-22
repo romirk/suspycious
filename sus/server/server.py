@@ -4,6 +4,7 @@ SUS server implementation.
 
 import asyncio
 import logging
+import os.path
 from typing import Iterable
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -30,8 +31,24 @@ class SusServer:
         self.__addr = addr
         self.__logger = logging.getLogger("gatekeeper")
 
-        self.__psks = X25519PrivateKey.from_private_bytes(bytes.fromhex(psks))
+        if not psks or len(psks) != 64:
+            self.__logger.warning("Invalid or empty private key provided. Generating a new one.")
+            self.__psks = X25519PrivateKey.generate()
+        else:
+            self.__psks = X25519PrivateKey.from_private_bytes(bytes.fromhex(psks))
         self.__ppks = self.__psks.public_key()
+
+        if not os.path.exists("server.pub"):
+            self.__logger.warning("Server key not found, creating a new one")
+
+            # presumably, this is the first time the server is run.
+            # print a helpful message to the user.
+            print("\nSus\n===\n")
+            print("Welcome to SUS!")
+            print("This is the first time you're running the server. A new keypair will be generated.")
+            print("Please copy the following public key to the client:")
+            print(self.__ppks.public_bytes(Encoding.Raw, PublicFormat.Raw).hex())
+            print("")
 
         with open("server.pub", "w") as f:
             f.write(self.__ppks.public_bytes(Encoding.Raw, PublicFormat.Raw).hex())
@@ -75,6 +92,10 @@ class SusServer:
         # start the garbage collector.
         gc_task = asyncio.create_task(self.__garbage_collector())
 
+        # if message handlers were emoty, warn the user.
+        if not message_handlers:
+            self.__logger.warning("No message handlers were provided. You will not receive any messages from clients.")
+            self.__logger.warning("Please specify message handlers when calling start().")
         # we're done here, wait for the protocol to close.
         try:
             await self.__protocol.closed.wait()
