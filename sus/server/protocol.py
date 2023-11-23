@@ -77,6 +77,7 @@ class OnePortProtocol(asyncio.DatagramProtocol):
             if not client.is_alive:
                 self.__logger.warning(f"Removing inactive client {addr}")
                 del self.__addr_to_conn_id[addr]
+                self.__clients[conn_id].disconnect()
                 del self.__clients[conn_id]
 
     def close(self):

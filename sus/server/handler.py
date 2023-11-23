@@ -62,6 +62,10 @@ class ClientHandler:
         self.__outgoing_buffer: bytearray = bytearray()
         self.__send_loop_task: asyncio.Task = asyncio.create_task(self.__send_loop())
 
+    def __del__(self):
+        self.__logger.info(f"Client {self.__addr} disconnected")
+        self.__send_loop_task.cancel()
+
     @property
     def is_alive(self):
         """
@@ -94,9 +98,12 @@ class ClientHandler:
         return self.__connection_id
 
     async def __send_loop(self):
-        while True:
-            await asyncio.sleep(1)
-            self.__flush()
+        try:
+            while True:
+                await asyncio.sleep(1)
+                self.__flush()
+        except asyncio.CancelledError:
+            return
 
     def __gen_connection_id(self, channel_id: int = 0) -> ConnectionID:
         wallet = self.__wallet
@@ -268,7 +275,6 @@ class ClientHandler:
             raise HandsakeError("Invalid handshake packet (missing protocol)")
 
         messages = self.__reform_messages(buffer)
-        self.__logger.debug(f"messages: {messages}")
 
         if not messages:
             self.__state = ConnectionState.ERROR
@@ -288,7 +294,7 @@ class ClientHandler:
             # send to all handlers
             for msg in messages:
                 asyncio.gather(*(handler(self.__addr, 0, msg) for handler in self.__message_handlers))
-                self.__logger.info(f">>> {trail_off(msg.decode('utf-8'))}")
+                self.__logger.debug(f">>> {trail_off(msg.decode('utf-8'))}")
 
     def __disconnected(self, data):
         raise NotImplementedError
@@ -325,7 +331,7 @@ class ClientHandler:
         Sends multiple packets if necessary. Sends an empty packet if there is no data to send.
         """
         packets = self.__encrypt_and_tag(self.__outgoing_buffer or b"\x00")
-        self.__logger.info(f"Sending {len(self.__outgoing_buffer)} bytes in {len(packets)} packets")
+        self.__logger.debug(f"Sending {len(self.__outgoing_buffer)} bytes in {len(packets)} packets")
         for packet in packets:
             self.__transport.sendto(packet, self.__addr)
         self.__outgoing_buffer.clear()
@@ -337,7 +343,7 @@ class ClientHandler:
         """
         if self.__state not in (ConnectionState.CONNECTED, ConnectionState.HANDSHAKE):
             return
-        self.__logger.info(f"<<< {trail_off(data.decode('utf-8'))}")
+        self.__logger.debug(f"<<< {trail_off(data.decode('utf-8'))}")
         self.__outgoing_buffer.extend(data)
 
     def __send_now(self, data: bytes):
@@ -350,3 +356,12 @@ class ClientHandler:
         :param handler: Awaitable handler function
         """
         self.__message_handlers.add(handler)
+
+    def disconnect(self):
+        """
+        Disconnects the client.
+        """
+        self.__state = ConnectionState.DISCONNECTED
+        self.__logger.info("Disconnected")
+        self.__send_now(b"\x01")
+        self.__send_loop_task.cancel()

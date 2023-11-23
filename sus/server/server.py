@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sus.common.util import Address, MessageHandler, Wallet
 from sus.server.protocol import OnePortProtocol
 
-GARABAGE_COLLECTOR_INTERVAL = 30  # seconds
+GARABAGE_COLLECTOR_INTERVAL = 15  # seconds
 
 
 class SusServer:

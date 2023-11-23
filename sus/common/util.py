@@ -5,7 +5,7 @@ Utility functions and classes.
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from logging import DEBUG, WARNING, basicConfig, getLogger
+from logging import WARNING, basicConfig, getLogger
 from typing import Any, Awaitable, Callable, Optional, Type, TypeAlias
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
@@ -28,7 +28,7 @@ def trail_off(msg: str, length: int = 40):
 
 def logger_config():
     """Default logger configuration."""
-    basicConfig(level=DEBUG, format="%(asctime)s | %(name)s - %(levelname)8s : %(message)s")
+    basicConfig(level=WARNING, format="%(asctime)s | %(name)s - %(levelname)8s : %(message)s")
     getLogger('asyncio').setLevel(WARNING)
 
 
