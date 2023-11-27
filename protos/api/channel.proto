@@ -1,5 +1,7 @@
 syntax = "proto3";
-import "channel.proto";
+
+package channel;
+import "api/channel.proto";
 
 
 message JoinChannelRequest {

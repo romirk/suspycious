@@ -5,7 +5,7 @@ import asyncio
 import logging
 from typing import Iterable
 
-from sus.common.exceptions import HandsakeError, MalformedPacket
+from sus.common.exceptions import HandshakeError, MalformedPacket
 from sus.common.util import Address, ConnectionID, MessageHandler, Wallet
 from sus.server.handler import ClientHandler
 
@@ -17,37 +17,41 @@ class OnePortProtocol(asyncio.DatagramProtocol):
     """
     __transport: asyncio.DatagramTransport
 
-    def __init__(self, wallet: Wallet, message_handlers: Iterable[MessageHandler]):
+    def __init__(self, wallet: Wallet, message_handlers: Iterable[MessageHandler], async_send: bool = False):
         super().__init__()
         self.__wallet = wallet
         self.__message_handlers = message_handlers
+        self.__async_send = async_send
 
         self.__addr_to_conn_id: dict[Address, ConnectionID] = dict()
         self.__clients: dict[ConnectionID, ClientHandler] = dict()
+        # noinspection SpellCheckingInspection
         self.__logger = logging.getLogger(f"oneportsus")
 
         self.closed = asyncio.Event()
 
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.__transport = transport
+        # noinspection SpellCheckingInspection
         self.__logger.info(f"Listening on port {transport.get_extra_info('sockname')[1]}")
 
     def error_received(self, exc):
         self.__logger.exception(exc)
 
     def datagram_received(self, data, addr):
-        if addr not in self.__addr_to_conn_id:
+        connection_id = int.from_bytes(data[:4], "little")
+        data = data[4:]
+        if connection_id not in self.__clients:
             try:
-                c = ClientHandler(addr, self.__transport, self.__wallet, self.__message_handlers)
+                c = ClientHandler(addr, self.__transport, self.__wallet, self.__message_handlers,
+                                  async_send=self.__async_send)
                 c.handle(data)
-            except (HandsakeError, MalformedPacket):
+            except (HandshakeError, MalformedPacket):
                 self.__logger.error(f"Handshake failed with {addr}")
                 return
-            self.__addr_to_conn_id[addr] = c.connection_id
             self.__clients[c.connection_id] = c
             return
 
-        connection_id = self.__addr_to_conn_id[addr]
         handler = self.__clients[connection_id]
 
         try:
@@ -56,11 +60,11 @@ class OnePortProtocol(asyncio.DatagramProtocol):
             self.__logger.error(f"Malformed packet from {addr}")
             del self.__clients[connection_id]
 
-    def send(self, data: bytes, addr: tuple[str, int]):
-        if addr not in self.__clients:
-            self.__logger.error(f"Attempted to send to {addr} but they are not connected")
+    def send(self, conn_id: ConnectionID, data: bytes):
+        if conn_id not in self.__clients:
+            self.__logger.error(f"Attempted to send to {conn_id} but they are not connected")
             return
-        self.__clients[self.__addr_to_conn_id[addr]].send(data)
+        self.__clients[conn_id].send(conn_id.to_bytes(4, "little") + data)
 
     def add_message_handler(self, handler: MessageHandler, addr: tuple[str, int]):
         self.__clients[self.__addr_to_conn_id[addr]].add_message_handler(handler)

@@ -24,18 +24,18 @@ class SusClientProtocol(asyncio.DatagramProtocol):
     transport: asyncio.DatagramTransport
     state: ConnectionState
 
-    def __init__(self, wallet: Wallet, protcol_id: bytes,
+    def __init__(self, wallet: Wallet, protocol_id: bytes,
                  handlers: Optional[Iterable[MessageHandler]] = None):
         """
         Initializes the client protocol.
         :param wallet: wallet containing the client's keys
-        :param protcol_id: protocol ID (any bytestring)
+        :param protocol_id: protocol ID (any bytestring)
         :param handlers: message handlers, called when a message is received
         """
         super().__init__()
 
         self.wallet = wallet
-        self.protocol_id = protcol_id
+        self.protocol_id = protocol_id
         self.state = ConnectionState.INITIAL
 
         self.logger = logging.getLogger(f"sus-cl")
@@ -56,7 +56,7 @@ class SusClientProtocol(asyncio.DatagramProtocol):
 
         self.message_handlers: set[MessageHandler] = set(handlers or [])
         self.handshake_event = asyncio.Event()
-        self.diconnection_event = asyncio.Event()
+        self.disconnection_event = asyncio.Event()
 
     def add_message_handler(self, handler: MessageHandler):
         self.message_handlers.add(handler)
@@ -85,7 +85,7 @@ class SusClientProtocol(asyncio.DatagramProtocol):
             case ConnectionState.CONNECTED:
                 pid, message = self.__verify_and_decrypt(data)
                 self.logger.info(f">>> {trail_off(message.decode('utf-8')) if message else None}")
-                self.handle_message(pid, message)
+                self.handle_message(message)
 
     def __verify_and_decrypt(self, data: bytes) -> tuple[None, None] | tuple[int, bytes]:
         """
@@ -131,7 +131,6 @@ class SusClientProtocol(asyncio.DatagramProtocol):
         :return: packets containing the encrypted and tagged message to send to the server
         """
         message_bytes = len(data).to_bytes(4, "little") + data
-        packet_length = self.mtu_estimate - 24
         padded_message_bytes = message_bytes  # + b"\x00" * (
         # packet_length - ((len(message_bytes) + len(token)) % packet_length))
 
@@ -188,13 +187,12 @@ class SusClientProtocol(asyncio.DatagramProtocol):
             self.state = ConnectionState.ERROR
         else:
             self.state = ConnectionState.DISCONNECTED
-        self.diconnection_event.set()
+        self.disconnection_event.set()
 
-    def handle_message(self, pid: int, message: bytes):
+    def handle_message(self, message: bytes):
         """
         Calls all message handlers asynchronously.
-        :param pid: packet ID
         :param message: message bytes
         :return:
         """
-        asyncio.gather(*[handler(("", 0), pid, message) for handler in self.message_handlers])
+        asyncio.gather(*[handler("", message) for handler in self.message_handlers])

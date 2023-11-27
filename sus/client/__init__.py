@@ -1,3 +1,3 @@
-from .client import SusClient
-
 __all__ = ["SusClient"]
+
+from .client import SusClient

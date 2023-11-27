@@ -30,5 +30,4 @@ The key exchange is done using the [X25519](https://tools.ietf.org/html/rfc7748)
 4. Bob generates a shared secret using his private key and Alice's public key.
 5. Alice and Bob now have the same shared secret.
 
-
-something something secret key
+something-something secret key

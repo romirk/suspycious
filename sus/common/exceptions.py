@@ -13,6 +13,6 @@ class MalformedPacket(Exception):
     pass
 
 
-class HandsakeError(Exception):
+class HandshakeError(Exception):
     """Raised when a handshake fails"""
     pass

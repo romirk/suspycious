@@ -2,7 +2,7 @@ import asyncio
 import collections
 import logging
 from os import urandom
-from typing import Iterable
+from typing import Callable, Iterable
 
 from blake3 import blake3
 from cryptography.exceptions import InvalidSignature
@@ -12,9 +12,9 @@ from cryptography.hazmat.primitives.ciphers import AEADDecryptionContext, AEADEn
 from cryptography.hazmat.primitives.ciphers.algorithms import ChaCha20
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from sus.common.exceptions import HandsakeError, MalformedPacket
+from sus.common.exceptions import HandshakeError, MalformedPacket
 from sus.common.globals import CLIENT_ENC_NONCE, CLIENT_MAC_NONCE, SERVER_ENC_NONCE, SERVER_MAC_NONCE
-from sus.common.util import ConnectionID, ConnectionState, MessageHandler, Wallet, now, trail_off
+from sus.common.util import Address, ConnectionID, ConnectionState, MessageHandler, Wallet, now, trail_off
 
 
 class ClientHandler:
@@ -30,13 +30,14 @@ class ClientHandler:
     __protocol: bytes
     __connection_id: ConnectionID
 
-    def __init__(self, addr: tuple[str, int], transport: asyncio.DatagramTransport, wallet: Wallet,
-                 message_handlers: Iterable[MessageHandler], max_packets: int = 8):
+    def __init__(self, addr: Address, transport: asyncio.DatagramTransport, wallet: Wallet,
+                 message_handlers: Iterable[MessageHandler], max_packets: int = 8, async_send: bool = False):
         self.__last_seen = now()
         self.__addr = addr
         self.__transport = transport
         self.__message_handlers = set(message_handlers)
         self.__state = ConnectionState.INITIAL
+        self.send: Callable[[bytes], None] = self.__send_later if async_send else self.__send_now
 
         self.__logger = logging.getLogger(f"{addr[0]}:{addr[1]}")
 
@@ -48,18 +49,15 @@ class ClientHandler:
 
         self.__wallet = wallet
 
-        self.__client_message_id = 0
-        self.__server_message_id = 0
-        self.__incoming_packet_id = 0
-        self.__outgoing_packet_id = 0
-
         self.__mtu_estimate = 1500
 
+        self.__incoming_packet_id = 0
         self.__incoming_buffer: collections.deque[bytes] = collections.deque(maxlen=max_packets)
         self.__incoming_keys: collections.deque[bytes] = collections.deque(maxlen=max_packets)
         self.__pending_message_length = 0
         self.__pending_message_buffer = bytearray()
-        self.__outgoing_buffer: bytearray = bytearray()
+        self.__outgoing_buffer = bytearray()
+
         self.__send_loop_task: asyncio.Task = asyncio.create_task(self.__send_loop())
 
     def __del__(self):
@@ -108,7 +106,7 @@ class ClientHandler:
     def __gen_connection_id(self, channel_id: int = 0) -> ConnectionID:
         wallet = self.__wallet
 
-        # figure out a way to determinisitically generate connection_id
+        # figure out a way to deterministically generate connection_id
         # for now, this just hashes the shared secret with the channel ID
         return int.from_bytes(
             blake3(
@@ -133,10 +131,10 @@ class ClientHandler:
         self.__cl_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_MAC_NONCE), None).decryptor()
         self.__sr_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_MAC_NONCE), None).encryptor()
 
-        for i in range(self.max_packets):
+        for _ in range(self.max_packets):
             self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
 
-    def __reform_messages(self, data: bytes) -> [bytes]:
+    def __reform_messages(self, data: bytes) -> list[bytes]:
         buffer = self.__pending_message_buffer + data
         pending_length = self.__pending_message_length
         messages = []
@@ -209,7 +207,6 @@ class ClientHandler:
 
     def __encrypt_and_tag(self, data: bytes) -> list[bytes]:
         message_bytes = len(data).to_bytes(4, "little") + data
-        packet_length = self.__mtu_estimate - 24
         padded_message_bytes = message_bytes  # + b"\x00" * (
         # packet_length - ((len(message_bytes)) % packet_length))
 
@@ -263,7 +260,7 @@ class ClientHandler:
         if client_token != wallet.token:
             self.__logger.debug(f"ours : {self.__wallet.token.hex()}")
             self.__logger.error("token mismatch!")
-            raise HandsakeError("Token mismatch")
+            raise HandshakeError("Token mismatch")
 
         self.__logger.debug("token: OK")
 
@@ -272,13 +269,13 @@ class ClientHandler:
         buffer = self.__verify_and_decrypt(data)
         if buffer is None:
             self.__state = ConnectionState.ERROR
-            raise HandsakeError("Invalid handshake packet (missing protocol)")
+            raise HandshakeError("Invalid handshake packet (missing protocol)")
 
         messages = self.__reform_messages(buffer)
 
         if not messages:
             self.__state = ConnectionState.ERROR
-            raise HandsakeError("Invalid handshake packet (protocol)")
+            raise HandshakeError("Invalid handshake packet (protocol)")
         self.__state = ConnectionState.CONNECTED
         self.__protocol = messages[0]
         self.__logger.info("Handshake complete")
@@ -293,7 +290,7 @@ class ClientHandler:
             # self.__logger.debug(f"messages: {messages}")
             # send to all handlers
             for msg in messages:
-                asyncio.gather(*(handler(self.__addr, 0, msg) for handler in self.__message_handlers))
+                asyncio.gather(*(handler(self.connection_id, msg) for handler in self.__message_handlers))
                 self.__logger.debug(f">>> {trail_off(msg.decode('utf-8'))}")
 
     def __disconnected(self, data):
@@ -336,7 +333,7 @@ class ClientHandler:
             self.__transport.sendto(packet, self.__addr)
         self.__outgoing_buffer.clear()
 
-    def send(self, data: bytes):
+    def __send_later(self, data: bytes):
         """
         Schedule a message to be sent to the client.
         :param data: data to send

@@ -1,3 +1,3 @@
-from .server import SusServer
-
 __all__ = ["SusServer"]
+
+from .server import SusServer

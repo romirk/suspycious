@@ -34,7 +34,7 @@ class SusClient:
         self.ppks = X25519PublicKey.from_public_bytes(bytes.fromhex(ppks))
         self.protocol_id = protocol_id
 
-        self.logger = logging.getLogger(f"sussus")
+        self.logger = logging.getLogger(f"SusClient")
 
     def __del__(self):
         self.disconnect()
@@ -161,6 +161,6 @@ class SusClient:
             self.logger.warning("not connected to server")
             return
         try:
-            await self.protocol.diconnection_event.wait()
+            await self.protocol.disconnection_event.wait()
         except asyncio.CancelledError:
             self.logger.info("exiting...")

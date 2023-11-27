@@ -5,13 +5,25 @@ Utility functions and classes.
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from logging import WARNING, basicConfig, getLogger
-from typing import Any, Awaitable, Callable, Optional, Type, TypeAlias
+from logging import DEBUG, WARNING, basicConfig, getLogger
+from typing import Any, Awaitable, Callable, Optional, TypeAlias
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 
-Address = tuple[str, int]
-MessageHandler: Type = Callable[[Address, int, bytes], Awaitable[Any]]
+Address: TypeAlias = tuple[str, int]
+ConnectionID: TypeAlias = int
+MessageHandler: TypeAlias = Callable[[ConnectionID, bytes], Awaitable[Any]]
+
+
+class ConnectionState(Enum):
+    """
+    Enum representing the state of the connection.
+    """
+    ERROR = -1
+    INITIAL = 0
+    HANDSHAKE = 1
+    CONNECTED = 2
+    DISCONNECTED = 3
 
 
 def trail_off(msg: str, length: int = 40):
@@ -28,7 +40,8 @@ def trail_off(msg: str, length: int = 40):
 
 def logger_config():
     """Default logger configuration."""
-    basicConfig(level=WARNING, format="%(asctime)s | %(name)s - %(levelname)8s : %(message)s")
+    # noinspection SpellCheckingInspection
+    basicConfig(level=DEBUG, format="%(asctime)s | %(name)s - %(levelname)8s : %(message)s")
     getLogger('asyncio').setLevel(WARNING)
 
 
@@ -66,17 +79,3 @@ class Wallet:
     """Verification token"""
     shared_secret: Optional[bytes] = None
     """Shared secret"""
-
-
-ConnectionID: TypeAlias = int
-
-
-class ConnectionState(Enum):
-    """
-    Enum representing the state of the connection.
-    """
-    ERROR = -1
-    INITIAL = 0
-    HANDSHAKE = 1
-    CONNECTED = 2
-    DISCONNECTED = 3
