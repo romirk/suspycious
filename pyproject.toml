@@ -18,8 +18,8 @@ packages = [{ include = "sus" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10"
-blake3 = "^0.3.3"
-cryptography = "^41.0.5"
+blake3 = { file = "./wheelhouse/blake3-0.3.3-cp312-cp312-linux_x86_64.whl" }
+cryptography = { file = "./wheelhouse/cryptography-41.0.5-cp312-cp312-linux_x86_64.whl" }
 
 [tool.poetry.scripts]
 sus = "sus.__main__:main"
