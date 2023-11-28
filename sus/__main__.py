@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 
-from sus.common.util import logger_config
+from sus.common.util import countdown, logger_config
 
 
 def main():
@@ -14,14 +14,15 @@ def main():
                            open(opts.public_key, "r").read().strip(),
                            opts.application_protocol.encode())
         asyncio.run(client.start())
-        client.send(b"fuckyou" * 3000)
+        countdown(5)
+        client.send(b"fuckyou" * 100)
     else:
         from sus.server import SusServer
 
         logger_config()
         server = SusServer(("0.0.0.0", opts.port),
                            open(opts.private_key, "r").read().strip() if opts.private_key else None)
-        asyncio.run(server.start())
+        asyncio.run(server.spin())
 
 
 def parse_args():

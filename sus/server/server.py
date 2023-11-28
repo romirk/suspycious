@@ -21,7 +21,7 @@ class SusServer:
     """
     __protocol: OnePortProtocol
 
-    __GARBAGE_COLLECTOR_INTERVAL = 15  # seconds
+    __GARBAGE_COLLECTOR_INTERVAL = 5  # seconds
 
     def __init__(self, addr: Address, psks: str):
         """
@@ -83,11 +83,16 @@ class SusServer:
         try:
             while not self.__protocol.closed.is_set():
                 await asyncio.sleep(SusServer.__GARBAGE_COLLECTOR_INTERVAL)
+                if not self.__protocol.has_clients:
+                    self.__logger.warning("No clients connected, shutting down")
+                    self.stop()
+                    return
+                self.__logger.debug(f"{len(self.__protocol)} clients connected")
                 self.__protocol.clean()
         except asyncio.CancelledError:
             pass
 
-    async def start(self, message_handlers: Iterable[MessageHandler] = None):
+    async def spin(self, message_handlers: Iterable[MessageHandler] = None):
         """
         This coroutine is responsible for starting the server.
         :param message_handlers: An iterable of message handlers, which are called when a message is received.
@@ -111,7 +116,7 @@ class SusServer:
             self.__logger.warning("Please specify message handlers when calling start().")
         # we're done here, wait for the protocol to close.
         try:
-            await self.__protocol.closed.wait()
+            await self.idler()
         except asyncio.CancelledError:
             self.stop()
         finally:
@@ -131,3 +136,10 @@ class SusServer:
         """
         self.__logger.warning("Shutting down")
         self.__protocol.close()
+
+    async def idler(self):
+        """
+        waits for the server to stop.
+        """
+        while not self.__protocol.closed.is_set():
+            await asyncio.sleep(1)

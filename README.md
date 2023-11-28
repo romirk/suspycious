@@ -36,7 +36,7 @@ async def message_handler(addr: Address, p_id: int, message: bytes):
     server.send(addr, b"Hello from the server!")
 
 
-asyncio.run(server.start([message_handler]))
+asyncio.run(server.spin([message_handler]))
 ```
 
 ```python3

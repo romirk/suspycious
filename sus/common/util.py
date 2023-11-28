@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from logging import DEBUG, WARNING, basicConfig, getLogger
+from time import sleep
 from typing import Any, Awaitable, Callable, Optional, TypeAlias
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
@@ -36,6 +37,18 @@ def trail_off(msg: str, length: int = 40):
     if len(msg) > length:
         msg = msg[:length - 3] + "..."
     return msg
+
+
+def countdown(sec: int):
+    """
+    Countdown timer.
+    :param sec: number of seconds to count down from
+    """
+    while sec > 0:
+        print(f"\r{sec} ", end="")
+        sec -= 1
+        sleep(1)
+    print("\r   ", end="")
 
 
 def logger_config():

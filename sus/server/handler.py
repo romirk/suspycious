@@ -31,7 +31,7 @@ class ClientHandler:
     __connection_id: ConnectionID
 
     def __init__(self, addr: Address, transport: asyncio.DatagramTransport, wallet: Wallet,
-                 message_handlers: Iterable[MessageHandler], max_packets: int = 8, async_send: bool = False):
+                 message_handlers: Iterable[MessageHandler], max_packets: int = 100, async_send: bool = False):
         self.__last_seen = now()
         self.__addr = addr
         self.__transport = transport
@@ -52,17 +52,27 @@ class ClientHandler:
         self.__mtu_estimate = 1500
 
         self.__incoming_packet_id = 0
-        self.__incoming_buffer: collections.deque[bytes] = collections.deque(maxlen=max_packets)
-        self.__incoming_keys: collections.deque[bytes] = collections.deque(maxlen=max_packets)
+        self.__incoming_packets: collections.deque[bytes] = collections.deque([b""] * max_packets, maxlen=max_packets)
+        self.__incoming_keys: collections.deque[bytes] = collections.deque([b""] * max_packets, maxlen=max_packets)
         self.__pending_message_length = 0
         self.__pending_message_buffer = bytearray()
+
+        self.__outgoing_packet_id = 0
         self.__outgoing_buffer = bytearray()
 
         self.__send_loop_task: asyncio.Task = asyncio.create_task(self.__send_loop())
 
     def __del__(self):
-        self.__logger.info(f"Client {self.__addr} disconnected")
-        self.__send_loop_task.cancel()
+        self.disconnect()
+
+    @property
+    def __pid(self):
+        return self.__incoming_packet_id
+
+    @__pid.setter
+    def __pid(self, value):
+        self.__logger.debug(f"packet ID: {value}")
+        self.__incoming_packet_id = value
 
     @property
     def is_alive(self):
@@ -89,7 +99,7 @@ class ClientHandler:
 
     @property
     def max_packets(self):
-        return self.__incoming_buffer.maxlen
+        return self.__incoming_packets.maxlen
 
     @property
     def connection_id(self):
@@ -97,7 +107,7 @@ class ClientHandler:
 
     async def __send_loop(self):
         try:
-            while True:
+            while self.__state not in (ConnectionState.ERROR, ConnectionState.DISCONNECTED):
                 await asyncio.sleep(1)
                 self.__flush()
         except asyncio.CancelledError:
@@ -111,9 +121,9 @@ class ClientHandler:
         return int.from_bytes(
             blake3(
                 wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) +
-                wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) +
+                wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) +
                 int.to_bytes(channel_id)
-            ).digest()[:8], "little", signed=False)
+            ).digest()[:4], "little", signed=False)
 
     def __key_exchange(self):
         wallet = self.__wallet
@@ -157,10 +167,11 @@ class ClientHandler:
     def __verify_and_decrypt(self, data: bytes) -> bytes | None:
         try:
             p_id = int.from_bytes(data[:8], "little")
-            if p_id > self.__incoming_packet_id + self.max_packets or p_id < self.__incoming_packet_id:
-                self.__logger.error("Packet {p_id} is too far ahead")
+            if p_id > self.__pid + self.max_packets or p_id < self.__pid:
+                self.__logger.error(f"Packet {p_id} dropped")
+                self.__logger.debug(f"Current packet ID: {self.__pid}")
                 return None
-            key = self.__incoming_keys[p_id - self.__incoming_packet_id]
+            key = self.__incoming_keys[p_id - self.__pid]
             payload = data[8:-16]
             tag = data[-16:]
             poly1305.Poly1305.verify_tag(key, data[:8] + payload, tag)
@@ -173,27 +184,31 @@ class ClientHandler:
                 # special case for first packet
                 payload = payload[32:]
                 self.__logger.debug(f"--- {trail_off(payload.hex())}")
-                self.__incoming_packet_id = 1
+                self.__pid = 1
                 message_bytes = self.__cl_enc.update(payload)
 
                 self.__incoming_keys.popleft()
                 self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
                 return message_bytes
-            case self.__incoming_packet_id:
+            case self.__pid:
                 self.__logger.debug(f"--- {trail_off(payload.hex())}")
 
                 # packet has already been verified
                 _ = self.__incoming_keys.popleft()
                 self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
-                self.__incoming_packet_id += 1
+                self.__pid += 1
                 message_bytes = self.__cl_enc.update(payload)
                 buffer = bytearray(message_bytes)
 
-                while self.__incoming_buffer and self.__incoming_buffer[0] is not None:
-                    packet = self.__incoming_buffer.popleft()
+                while self.__incoming_packets[0]:
+                    packet = self.__incoming_packets.popleft()
                     _ = self.__incoming_keys.popleft()
-                    assert int.from_bytes(packet[:8], "little") == self.__incoming_packet_id
-                    self.__incoming_packet_id += 1
+                    p_id = int.from_bytes(packet[:8], "little")
+                    self.__logger.debug(f"expected pid: {self.__pid} got {p_id}")
+                    assert p_id == self.__pid
+                    self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
+                    self.__incoming_packets.append(b"")
+                    self.__pid += 1
                     payload = packet[8:-16]
                     message_bytes = self.__cl_enc.update(payload)
                     buffer.extend(message_bytes)
@@ -201,8 +216,8 @@ class ClientHandler:
                 return bytes(buffer)
 
             case _:
-                self.__incoming_keys.insert(p_id - self.__incoming_packet_id, self.__cl_mac.update(payload))
-                self.__incoming_buffer.insert(p_id - self.__incoming_packet_id, data)
+                self.__incoming_keys.insert(p_id - self.__pid, self.__cl_mac.update(payload))
+                self.__incoming_packets.insert(p_id - self.__pid, data)
                 return None
 
     def __encrypt_and_tag(self, data: bytes) -> list[bytes]:
@@ -218,11 +233,11 @@ class ClientHandler:
         packets = []
         for payload in payloads:
             key = self.__sr_mac.update(b"\x00" * 32)
-            p_id = self.__incoming_packet_id.to_bytes(8, "little")
+            p_id = self.__pid.to_bytes(8, "little")
             frame = p_id + payload
             tag = poly1305.Poly1305.generate_tag(key, frame)
             packets.append(frame + tag)
-            self.__incoming_packet_id += 1
+            self.__outgoing_packet_id += 1
         return packets
 
     def __split_message(self, data: bytes) -> list[bytes]:
@@ -297,10 +312,10 @@ class ClientHandler:
         raise NotImplementedError
 
     def __error(self, data):
-        raise NotImplementedError
+        self.__logger.error(f"Received data in error state: {trail_off(data.hex())}")
 
     def change_max_packets(self, max_size: int):
-        self.__incoming_buffer = collections.deque(self.__incoming_buffer, maxlen=max_size)
+        self.__incoming_packets = collections.deque(self.__incoming_packets, maxlen=max_size)
         self.__incoming_keys = collections.deque(self.__incoming_keys, maxlen=max_size)
 
     def handle(self, data: bytes):

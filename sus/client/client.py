@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from sus.client.protocol import SusClientProtocol
 from sus.common.exceptions import MalformedPacket
-from sus.common.util import ConnectionState, MessageHandler, Wallet
+from sus.common.util import ConnectionID, ConnectionState, MessageHandler, Wallet
 
 
 class SusClient:
@@ -30,14 +30,25 @@ class SusClient:
         :param ppks: Server public key
         :param protocol_id:  Protocol ID (any bytestring)
         """
-        self.server_addr = addr
-        self.ppks = X25519PublicKey.from_public_bytes(bytes.fromhex(ppks))
-        self.protocol_id = protocol_id
+        self.__addr = addr
+        self.__ppks = X25519PublicKey.from_public_bytes(bytes.fromhex(ppks))
+        self.__protocol_id = protocol_id
 
-        self.logger = logging.getLogger(f"SusClient")
+        self.__logger = logging.getLogger(f"SusClient")
 
     def __del__(self):
         self.disconnect()
+
+    @staticmethod
+    def __gen_connection_id(wallet: Wallet, channel_id: int = 0) -> ConnectionID:
+        # figure out a way to deterministically generate connection_id
+        # for now, this just hashes the shared secret with the channel ID
+        return int.from_bytes(
+            blake3(
+                wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) +
+                wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) +
+                int.to_bytes(channel_id)
+            ).digest()[:4], "little", signed=False)
 
     @property
     def connected(self):
@@ -70,7 +81,7 @@ class SusClient:
         # 4. receive (epks, ns, port) from server
         wallet.epks = X25519PublicKey.from_public_bytes(epks_ns_port[:32])
         wallet.ns = epks_ns_port[32:40]
-        self.logger.info("received keys, starting handshake")
+        self.__logger.info("received keys, starting handshake")
         # 5. compute ecps = X25519(eskc, ppks)
         ecps = wallet.eskc.exchange(wallet.ppks)
         eces = wallet.eskc.exchange(wallet.epks)
@@ -80,10 +91,10 @@ class SusClient:
             wallet.ppks.public_bytes(Encoding.Raw, PublicFormat.Raw) +
             wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) +
             wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw)).digest()
-        self.logger.info("shared secret: %s", wallet.shared_secret.hex())
+        self.__logger.info("shared secret: %s", wallet.shared_secret.hex())
 
         # 7. compute token = H(epkc, epks, nc, ns)
-        self.logger.info("\n".join([
+        self.__logger.info("\n".join([
             f"epkc: {wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()}",
             f"epks: {wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()}",
             f"nc: {wallet.nc.hex()}",
@@ -99,31 +110,29 @@ class SusClient:
         This coroutine is responsible for connecting to the server.
         Performs the key exchange and starts the handshake.
         """
-        self.logger.info(f"connecting to server ({self.server_addr[0]}:{self.server_addr[1]})")
+        self.__logger.info(f"connecting to server ({self.__addr[0]}:{self.__addr[1]})")
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect(self.server_addr)
+        sock.connect(self.__addr)
         sock.setblocking(False)
         sock.settimeout(5)
 
         eskc = X25519PrivateKey.generate()
         epkc = eskc.public_key()
         nc = urandom(8)
-        wallet = Wallet(ppks=self.ppks, eskc=eskc, epkc=epkc, nc=nc)
+        wallet = Wallet(ppks=self.__ppks, eskc=eskc, epkc=epkc, nc=nc)
 
-        # try:
-        sock.send(wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) + wallet.nc)
+        sock.send(b"\x00" * 4 + wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) + wallet.nc)
         data = sock.recv(40)
-        # except (ConnectionError, TimeoutError):
-        #     self.logger.error("failed to connect to server")
-        # return False
 
         wallet = self.__key_exchange(data, wallet)
+        conn_id = self.__gen_connection_id(wallet)
+        self.__logger.debug(f"connection ID: {conn_id}")
 
-        self.logger.info("received keys, starting handshake")
+        self.__logger.info("received keys, starting handshake")
 
         _, self.protocol = await asyncio.get_event_loop().create_datagram_endpoint(
-            lambda: SusClientProtocol(wallet, self.protocol_id),
+            lambda: SusClientProtocol(wallet, conn_id, self.__protocol_id),
             sock=sock
         )
         await self.protocol.handshake_event.wait()
@@ -135,7 +144,7 @@ class SusClient:
         :param data: message to send as bytes
         """
         if not self.protocol:
-            self.logger.warning("not connected to server")
+            self.__logger.warning("not connected to server")
             return
         self.protocol.send(data)
 
@@ -144,23 +153,23 @@ class SusClient:
         Disconnects from the server.
         """
         if not hasattr(self, "protocol"):
-            self.logger.warning("not connected to server")
+            self.__logger.warning("not connected to server")
             return
         try:
             asyncio.get_running_loop()
             self.protocol.disconnect()
         except RuntimeError:  # not running in event loop
             pass
-        self.logger.info(f"disconnected from server ({self.server_addr[0]}:{self.server_addr[1]})")
+        self.__logger.info(f"disconnected from server ({self.__addr[0]}:{self.__addr[1]})")
 
     async def keep_alive(self):
         """
         Convenience coroutine that waits until the client is disconnected.
         """
         if not hasattr(self, "protocol"):
-            self.logger.warning("not connected to server")
+            self.__logger.warning("not connected to server")
             return
         try:
             await self.protocol.disconnection_event.wait()
         except asyncio.CancelledError:
-            self.logger.info("exiting...")
+            self.__logger.info("exiting...")

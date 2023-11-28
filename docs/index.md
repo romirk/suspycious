@@ -28,15 +28,15 @@ import asyncio
 
 from sus import SusServer
 
-
-
 server = SusServer(('localhost', 5000), b"my secret key")
+
 
 async def message_handler(addr: tuple[str, int], p_id: int, message: bytes):
     print(f"Received message from {addr}: {message.decode()}")
     server.send(addr, b"Hello from the server!")
 
-asyncio.run(server.start([message_handler]))
+
+asyncio.run(server.spin([message_handler]))
 ```
 
 ```python3
