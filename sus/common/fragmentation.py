@@ -24,8 +24,6 @@ is a continuation of the previous message. The `message_id` is used to reassembl
 the fragments into messages.
 
 """
-from os import urandom
-from time import sleep
 
 import numpy as np
 
@@ -53,7 +51,7 @@ class Fragment:
 
     @property
     def priority(self):
-        return np.log(self.original_length * now() / self.send_time)
+        return np.log(len(self.data) * now() / self.send_time)
 
     def extract(self, size: int) -> bytes:
         r = self.data[:size]
@@ -161,10 +159,6 @@ class Defragmenter:
             self.__message_length[idx] = int.from_bytes(buffer[:4], "little")
             self.__message_buffer[idx] = buffer[4:]
 
-        if len(self.__message_buffer[idx]) >= self.__message_length[idx]:
-            self.__incoming.append(self.__message_buffer[idx])
-            del self.__message_buffer[idx]
-
     def update(self, data: bytes):
         """
         This function is responsible for defragmenting a packet.
@@ -181,6 +175,15 @@ class Defragmenter:
             idx += 1
             data = data[frag_len:]
 
+        for idx, length in enumerate(self.__message_length):
+            if length == 0:
+                continue
+            if len(self.__message_buffer[idx]) < length:
+                continue
+            self.__incoming.append(self.__message_buffer[idx][:length])
+            del self.__message_buffer[idx]
+            del self.__message_length[idx]
+
 
 if __name__ == "__main__":
     fragger = Fragmenter(150)
@@ -192,15 +195,11 @@ if __name__ == "__main__":
 
     fragger.add_message(len(A).to_bytes(4, "little") + A)
     fragger.add_message(len(B).to_bytes(4, "little") + B)
-    sleep(1)
     fragger.add_message(len(C).to_bytes(4, "little") + C)
 
     for i, frag in enumerate(fragger):
         print(i, frag)
         defragger.update(frag)
-        if not i % 5:
-            R = urandom(200)
-            fragger.add_message(len(R).to_bytes(4, "little") + R)
 
     for i, msg in enumerate(defragger):
-        print(i, msg)
+        print(i, len(msg), msg)
