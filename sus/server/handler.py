@@ -5,30 +5,22 @@ from os import urandom
 from typing import Callable, Iterable
 
 from blake3 import blake3
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import poly1305
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-from cryptography.hazmat.primitives.ciphers import AEADDecryptionContext, AEADEncryptionContext, Cipher
+from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.ciphers.algorithms import ChaCha20
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from sus.common.exceptions import HandshakeError, MalformedPacket
 from sus.common.globals import CLIENT_ENC_NONCE, CLIENT_MAC_NONCE, SERVER_ENC_NONCE, SERVER_MAC_NONCE
+from sus.common.handler import BaseHandler
 from sus.common.util import Address, ConnectionID, ConnectionState, MessageHandler, Wallet, now, trail_off
 
 
-class ClientHandler:
+class ClientHandler(BaseHandler):
     """
     This class is responsible for handling clients.
     One instance of this class is created for each client.
     """
-    __cl_enc: AEADDecryptionContext
-    __sr_enc: AEADEncryptionContext
-    __cl_mac: AEADDecryptionContext
-    __sr_mac: AEADEncryptionContext
-
-    __protocol: bytes
-    __connection_id: ConnectionID
 
     def __init__(self, addr: Address, transport: asyncio.DatagramTransport, wallet: Wallet,
                  message_handlers: Iterable[MessageHandler], max_packets: int = 100, async_send: bool = False):
@@ -95,7 +87,7 @@ class ClientHandler:
 
     @property
     def protocol(self):
-        return self.__protocol
+        return self.__app_id
 
     @property
     def max_packets(self):
@@ -103,7 +95,7 @@ class ClientHandler:
 
     @property
     def connection_id(self):
-        return self.__connection_id
+        return self.__con_id
 
     async def __send_loop(self):
         try:
@@ -136,109 +128,14 @@ class ClientHandler:
             wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw)).digest()
         self.__logger.debug(f"shared_secret: {wallet.shared_secret.hex()}")
         # noinspection DuplicatedCode
-        self.__cl_enc = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_ENC_NONCE), None).decryptor()
-        self.__sr_enc = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_ENC_NONCE), None).encryptor()
-        self.__cl_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_MAC_NONCE), None).decryptor()
-        self.__sr_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_MAC_NONCE), None).encryptor()
+        self.__inc_dec = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_ENC_NONCE), None).decryptor()
+        self.__out_enc = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_ENC_NONCE), None).encryptor()
+        self.__inc_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_MAC_NONCE), None).decryptor()
+        self.__out_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_MAC_NONCE), None).encryptor()
 
         for _ in range(self.max_packets):
-            self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
+            self.__incoming_keys.append(self.__inc_mac.update(b"\x00" * 32))
 
-    def __reform_messages(self, data: bytes) -> list[bytes]:
-        buffer = self.__pending_message_buffer + data
-        pending_length = self.__pending_message_length
-        messages = []
-        # self.__logger.debug(f"buffer: {buffer.hex()}")
-        while len(buffer) >= pending_length:
-            if pending_length == 0:
-                if len(buffer) < 4:
-                    break
-                pending_length = int.from_bytes(buffer[:4], "little")
-                buffer = buffer[4:]
-            else:
-                messages.append(bytes(buffer[:pending_length]))
-                buffer = buffer[pending_length:]
-                pending_length = 0
-        self.__pending_message_buffer = buffer
-        self.__pending_message_length = pending_length
-        # self.__logger.debug(f"pending: {pending_length}")
-        return messages
-
-    def __verify_and_decrypt(self, data: bytes) -> bytes | None:
-        try:
-            p_id = int.from_bytes(data[:8], "little")
-            if p_id > self.__pid + self.max_packets or p_id < self.__pid:
-                self.__logger.error(f"Packet {p_id} dropped")
-                self.__logger.debug(f"Current packet ID: {self.__pid}")
-                return None
-            key = self.__incoming_keys[p_id - self.__pid]
-            payload = data[8:-16]
-            tag = data[-16:]
-            poly1305.Poly1305.verify_tag(key, data[:8] + payload, tag)
-        except InvalidSignature:
-            self.__logger.error("Invalid signature")
-            return None
-
-        match p_id:
-            case 0:
-                # special case for first packet
-                payload = payload[32:]
-                self.__logger.debug(f"--- {trail_off(payload.hex())}")
-                self.__pid = 1
-                message_bytes = self.__cl_enc.update(payload)
-
-                self.__incoming_keys.popleft()
-                self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
-                return message_bytes
-            case self.__pid:
-                self.__logger.debug(f"--- {trail_off(payload.hex())}")
-
-                # packet has already been verified
-                _ = self.__incoming_keys.popleft()
-                self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
-                self.__pid += 1
-                message_bytes = self.__cl_enc.update(payload)
-                buffer = bytearray(message_bytes)
-
-                while self.__incoming_packets[0]:
-                    packet = self.__incoming_packets.popleft()
-                    _ = self.__incoming_keys.popleft()
-                    p_id = int.from_bytes(packet[:8], "little")
-                    self.__logger.debug(f"expected pid: {self.__pid} got {p_id}")
-                    assert p_id == self.__pid
-                    self.__incoming_keys.append(self.__cl_mac.update(b"\x00" * 32))
-                    self.__incoming_packets.append(b"")
-                    self.__pid += 1
-                    payload = packet[8:-16]
-                    message_bytes = self.__cl_enc.update(payload)
-                    buffer.extend(message_bytes)
-
-                return bytes(buffer)
-
-            case _:
-                self.__incoming_keys.insert(p_id - self.__pid, self.__cl_mac.update(payload))
-                self.__incoming_packets.insert(p_id - self.__pid, data)
-                return None
-
-    def __encrypt_and_tag(self, data: bytes) -> list[bytes]:
-        message_bytes = len(data).to_bytes(4, "little") + data
-        padded_message_bytes = message_bytes  # + b"\x00" * (
-        # packet_length - ((len(message_bytes)) % packet_length))
-
-        ciphertext = self.__sr_enc.update(padded_message_bytes)
-        self.__logger.debug(f"--- {trail_off(ciphertext.hex())}")
-
-        payloads = self.__split_message(ciphertext)
-
-        packets = []
-        for payload in payloads:
-            key = self.__sr_mac.update(b"\x00" * 32)
-            p_id = self.__pid.to_bytes(8, "little")
-            frame = p_id + payload
-            tag = poly1305.Poly1305.generate_tag(key, frame)
-            packets.append(frame + tag)
-            self.__outgoing_packet_id += 1
-        return packets
 
     def __split_message(self, data: bytes) -> list[bytes]:
         packet_length = self.__mtu_estimate - 24
@@ -252,10 +149,10 @@ class ClientHandler:
         wallet.epkc = X25519PublicKey.from_public_bytes(data[:32])
         wallet.nc = data[32:]
 
-        self.__connection_id = self.__gen_connection_id()
+        self.__con_id = self.__gen_connection_id()
         self.__state = ConnectionState.HANDSHAKE
         self.__transport.sendto((wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) + wallet.ns), self.__addr)
-        self.__logger.info(f"connection ID: {self.__connection_id}")
+        self.__logger.info(f"connection ID: {self.__con_id}")
 
     def __handshake(self, data) -> None:
         if len(data) < 40:
@@ -292,9 +189,9 @@ class ClientHandler:
             self.__state = ConnectionState.ERROR
             raise HandshakeError("Invalid handshake packet (protocol)")
         self.__state = ConnectionState.CONNECTED
-        self.__protocol = messages[0]
+        self.__app_id = messages[0]
         self.__logger.info("Handshake complete")
-        self.__logger.debug(f"protocol: {self.__protocol.decode('utf-8')}")
+        self.__logger.debug(f"protocol: {self.__app_id.decode('utf-8')}")
 
     def __connected(self, data):
 
@@ -317,63 +214,3 @@ class ClientHandler:
     def change_max_packets(self, max_size: int):
         self.__incoming_packets = collections.deque(self.__incoming_packets, maxlen=max_size)
         self.__incoming_keys = collections.deque(self.__incoming_keys, maxlen=max_size)
-
-    def handle(self, data: bytes):
-        """
-        Handles incoming packets.
-        :param data: packet data
-        """
-        self.__last_seen = now()
-
-        match self.__state:
-            case ConnectionState.INITIAL:
-                self.__initial(data)
-            case ConnectionState.HANDSHAKE:
-                self.__handshake(data)
-            case ConnectionState.CONNECTED:
-                self.__connected(data)
-            case ConnectionState.DISCONNECTED:
-                self.__disconnected(data)
-            case ConnectionState.ERROR:
-                self.__error(data)
-
-    def __flush(self):
-        """
-        Flushes the outgoing buffer, sending all pending messages.
-        Sends multiple packets if necessary. Sends an empty packet if there is no data to send.
-        """
-        packets = self.__encrypt_and_tag(self.__outgoing_buffer or b"\x00")
-        self.__logger.debug(f"Sending {len(self.__outgoing_buffer)} bytes in {len(packets)} packets")
-        for packet in packets:
-            self.__transport.sendto(packet, self.__addr)
-        self.__outgoing_buffer.clear()
-
-    def __send_later(self, data: bytes):
-        """
-        Schedule a message to be sent to the client.
-        :param data: data to send
-        """
-        if self.__state not in (ConnectionState.CONNECTED, ConnectionState.HANDSHAKE):
-            return
-        self.__logger.debug(f"<<< {trail_off(data.decode('utf-8'))}")
-        self.__outgoing_buffer.extend(data)
-
-    def __send_now(self, data: bytes):
-        self.__outgoing_buffer.extend(data)
-        self.__flush()
-
-    def add_message_handler(self, handler: MessageHandler):
-        """
-        Adds a message handler. This handler will be called when a message is received.
-        :param handler: Awaitable handler function
-        """
-        self.__message_handlers.add(handler)
-
-    def disconnect(self):
-        """
-        Disconnects the client.
-        """
-        self.__state = ConnectionState.DISCONNECTED
-        self.__logger.info("Disconnected")
-        self.__send_now(b"\x01")
-        self.__send_loop_task.cancel()

@@ -42,10 +42,10 @@ class SusClientProtocol(asyncio.DatagramProtocol):
 
         self.__last_seen = now()
 
-        self.__cl_enc = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_ENC_NONCE), None).encryptor()
-        self.__sr_enc = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_ENC_NONCE), None).decryptor()
-        self.__cl_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_MAC_NONCE), None).encryptor()
-        self.__sr_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_MAC_NONCE), None).decryptor()
+        self.__out_enc = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_ENC_NONCE), None).encryptor()
+        self.__inc_dec = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_ENC_NONCE), None).decryptor()
+        self.__out_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + CLIENT_MAC_NONCE), None).encryptor()
+        self.__inc_mac = Cipher(ChaCha20(wallet.shared_secret, b"\x00" * 8 + SERVER_MAC_NONCE), None).decryptor()
 
         self.__client_message_id = 0
         self.__server_message_id = 0
@@ -102,7 +102,7 @@ class SusClientProtocol(asyncio.DatagramProtocol):
         :return: packet ID and message, or None if the packet is invalid
         """
         try:
-            key = self.__sr_mac.update(b"\x00" * 32)
+            key = self.__inc_mac.update(b"\x00" * 32)
             p_id = data[:8]
             payload = data[8:-16]
             tag = data[-16:]
@@ -113,7 +113,7 @@ class SusClientProtocol(asyncio.DatagramProtocol):
             return None, None
 
         p_id = int.from_bytes(p_id, "little")
-        message_bytes = self.__sr_enc.update(payload)
+        message_bytes = self.__inc_dec.update(payload)
         message_length = int.from_bytes(message_bytes[:4], "little")
         message: bytes = message_bytes[4:message_length + 4]
         # self.logger.info(f"Received message {p_id} ({message_length} bytes)")
@@ -142,7 +142,7 @@ class SusClientProtocol(asyncio.DatagramProtocol):
         padded_message_bytes = message_bytes  # + b"\x00" * (
         # packet_length - ((len(message_bytes) + len(token)) % packet_length))
 
-        ciphertext = self.__cl_enc.update(padded_message_bytes)
+        ciphertext = self.__out_enc.update(padded_message_bytes)
         self.__logger.debug(f"--- {trail_off(ciphertext.hex())}")
         if token:
             self.__logger.debug(f"TOK {trail_off(token.hex())}")
@@ -151,7 +151,7 @@ class SusClientProtocol(asyncio.DatagramProtocol):
 
         packets = []
         for payload in payloads:
-            key = self.__cl_mac.update(b"\x00" * 32)
+            key = self.__out_mac.update(b"\x00" * 32)
             p_id = self.__outgoing_packet_id.to_bytes(8, "little")
             frame = p_id + payload
             tag = poly1305.Poly1305.generate_tag(key, frame)

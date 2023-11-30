@@ -63,6 +63,36 @@ def now():
     return datetime.now().timestamp()
 
 
+def varint(n: int) -> bytes:
+    """
+    Encodes an integer as a varint
+    :param n: integer to encode
+    :return: encoded integer
+    """
+    b = bytearray()
+    while n > 127:
+        b.append((n & 0x7f) | 0x80)
+        n >>= 7
+    b.append(n & 0x7f)
+    return bytes(b)
+
+
+def varint_decode(b: bytes) -> tuple[int, int]:
+    """
+    Decodes a varint into an integer
+    :param b: varint to decode
+    :return: decoded integer
+    """
+    n = 0
+    _len = 0
+    for i, byte in enumerate(b):
+        n |= (byte & 0x7f) << (i * 7)
+        _len += 1
+        if not byte & 0x80:
+            break
+    return n, _len
+
+
 @dataclass
 class Wallet:
     """
