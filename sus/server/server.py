@@ -11,7 +11,7 @@ from typing import Iterable
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from sus.common.util import Address, ConnectionID, MessageHandler, Wallet
+from sus.common.util import Address, ConnectionID, MessageCallback, Wallet
 from sus.server.protocol import OnePortProtocol
 
 
@@ -92,7 +92,7 @@ class SusServer:
         except asyncio.CancelledError:
             pass
 
-    async def spin(self, message_handlers: Iterable[MessageHandler] = None):
+    async def spin(self, message_handlers: Iterable[MessageCallback] = None):
         """
         This coroutine is responsible for starting the server.
         :param message_handlers: An iterable of message handlers, which are called when a message is received.

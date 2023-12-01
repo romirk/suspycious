@@ -24,6 +24,7 @@ is a continuation of the previous message. The `message_id` is used to reassembl
 the fragments into messages.
 
 """
+from os import urandom
 
 import numpy as np
 
@@ -87,9 +88,9 @@ class Fragmenter:
     def __next__(self):
         if not self.__message_buffer:
             raise StopIteration
-        return self.__fragment()
+        return self.fragment()
 
-    def __fragment(self) -> bytes:
+    def fragment(self) -> bytes:
         """
         This function is responsible for fragmenting a message.
         :return: packet containing the fragments
@@ -200,6 +201,11 @@ if __name__ == "__main__":
     for i, frag in enumerate(fragger):
         print(i, frag)
         defragger.update(frag)
+        if not i % 5:
+            R = urandom(100)
+            fragger.add_message(len(R).to_bytes(4, "little") + R)
 
     for i, msg in enumerate(defragger):
         print(i, len(msg), msg)
+
+    print(defragger.has_messages)

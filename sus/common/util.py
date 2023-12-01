@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 
 Address: TypeAlias = tuple[str, int]
 ConnectionID: TypeAlias = int
-MessageHandler: TypeAlias = Callable[[ConnectionID, bytes], Awaitable[Any]]
+MessageCallback: TypeAlias = Callable[[ConnectionID, bytes], Awaitable[Any]]
 
 
 class ConnectionState(Enum):

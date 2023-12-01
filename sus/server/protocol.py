@@ -6,8 +6,8 @@ import logging
 from typing import Iterable
 
 from sus.common.exceptions import HandshakeError, MalformedPacket
-from sus.common.util import ConnectionID, MessageHandler, Wallet
-from sus.server.handler import ClientHandler
+from sus.common.util import ConnectionID, MessageCallback, Wallet
+from sus.server.handler import ServerEndpoint
 
 
 class OnePortProtocol(asyncio.DatagramProtocol):
@@ -17,13 +17,13 @@ class OnePortProtocol(asyncio.DatagramProtocol):
     """
     __transport: asyncio.DatagramTransport
 
-    def __init__(self, wallet: Wallet, message_handlers: Iterable[MessageHandler], async_send: bool = False):
+    def __init__(self, wallet: Wallet, message_handlers: Iterable[MessageCallback], async_send: bool = False):
         super().__init__()
         self.__wallet = wallet
         self.__message_handlers = message_handlers
         self.__async_send = async_send
 
-        self.__clients: dict[ConnectionID, ClientHandler] = dict()
+        self.__clients: dict[ConnectionID, ServerEndpoint] = dict()
         # noinspection SpellCheckingInspection
         self.__logger = logging.getLogger(f"oneportsus")
 
@@ -49,8 +49,8 @@ class OnePortProtocol(asyncio.DatagramProtocol):
         data = data[4:]
         if not connection_id:
             try:
-                c = ClientHandler(addr, self.__transport, self.__wallet, self.__message_handlers,
-                                  async_send=self.__async_send)
+                c = ServerEndpoint(addr, self.__transport, self.__wallet, self.__message_handlers,
+                                   async_send=self.__async_send)
                 c.handle(data)
             except (HandshakeError, MalformedPacket):
                 self.__logger.error(f"Handshake failed with {addr}")
@@ -99,5 +99,11 @@ class OnePortProtocol(asyncio.DatagramProtocol):
         self.__transport.close()
 
     def connection_lost(self, exc):
-        self.__logger.warning("Connection closed")
+        """
+        Called when the connection is lost. Sets the disconnection event.
+        :param exc: exception raised, if any
+        """
+        self.__logger.warning("Connection lost")
+        if exc:
+            self.__logger.exception(exc)
         self.closed.set()

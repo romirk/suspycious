@@ -14,6 +14,8 @@ def main():
                            open(opts.public_key, "r").read().strip(),
                            opts.application_protocol.encode())
         asyncio.run(client.start())
+        if not client.connected:
+            return
         countdown(5)
         client.send(b"fuckyou" * 100)
     else:
