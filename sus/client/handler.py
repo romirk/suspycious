@@ -38,7 +38,7 @@ class ClientEndpoint(BaseEndpoint):
         self._logger.info("received keys, starting handshake")
 
         ecps = wallet.eskc.exchange(wallet.ppks)
-        eces = wallet.esks.exchange(wallet.epks)
+        eces = wallet.eskc.exchange(wallet.epks)
         self._gen_secrets(ecps, eces)
 
         wallet.token = blake3(wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) +

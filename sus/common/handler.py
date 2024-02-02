@@ -183,6 +183,12 @@ class BaseEndpoint(ABC):
         self.__out_mac = Cipher(ChaCha20(wallet.shared_secret, nonces[1][1]), None).encryptor()
 
     def __reform_messages(self, data: bytes) -> list[bytes]:
+        """
+        Reform messages from a buffer.
+
+        :param data: buffer
+        :return: list of messages
+        """
         buffer = self.__pending_message_buffer + data
         pending_length = self.__pending_message_length
         messages = []
@@ -313,7 +319,7 @@ class BaseEndpoint(ABC):
         self._logger.debug(f"<<< {trail_off(data.decode('utf-8'))}")
         self.__outgoing_buffer.extend(data)
 
-    def __connected(self, data):
+    def _connected(self, data):
         """
         Handles connected packets.
         :param data: packet data
@@ -358,7 +364,7 @@ class BaseEndpoint(ABC):
             case ConnectionState.HANDSHAKE:
                 self._handshake(data)
             case ConnectionState.CONNECTED:
-                self.__connected(data)
+                self._connected(data)
             case ConnectionState.DISCONNECTED:
                 self._disconnected(data)
             case ConnectionState.ERROR:
