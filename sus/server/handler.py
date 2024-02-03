@@ -18,8 +18,7 @@ class ServerEndpoint(BaseEndpoint):
     """
 
     def __init__(self, addr: Address, transport: asyncio.DatagramTransport, wallet: Wallet,
-                 message_handlers: Iterable[MessageCallback], app_id: bytes = b"", max_packets: int = 100,
-                 async_send: bool = False):
+                 message_handlers: Iterable[MessageCallback], app_id: bytes = b"", max_packets: int = 100):
 
         super().__init__(addr, transport, app_id, wallet, message_handlers, max_packets)
 
@@ -30,20 +29,22 @@ class ServerEndpoint(BaseEndpoint):
         wallet.ns = urandom(8)
 
     def _initial(self, data):
-        if len(data) != 40:
+        if len(data) != 44:
             self._logger.error(f"Invalid handshake packet ({len(data)} bytes): {data}")
             raise MalformedPacket("Invalid handshake packet")
+        data = data[4:]
         wallet = self._wallet
         wallet.epkc = X25519PublicKey.from_public_bytes(data[:32])
         wallet.nc = data[32:]
 
         self._con_id = self._gen_connection_id()
+        self._logger.info(f"connection ID: {self._con_id}")
         self._state = ConnectionState.HANDSHAKE
         self._transport.sendto((wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) + wallet.ns), self._addr)
-        self._logger.info(f"connection ID: {self._con_id}")
+        self._logger.info("sent keys, waiting for response")
 
     def _handshake(self, data) -> None:
-        if len(data) < 40:
+        if len(data) < 44:
             self._logger.error("Invalid handshake packet")
             self._state = ConnectionState.ERROR
             raise MalformedPacket("Invalid handshake packet")
@@ -53,7 +54,8 @@ class ServerEndpoint(BaseEndpoint):
         wallet.token = blake3(wallet.epkc.public_bytes(Encoding.Raw, PublicFormat.Raw) +
                               wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) +
                               wallet.nc + wallet.ns).digest()
-        client_token = data[8:40]
+
+        client_token = data[12:44]
 
         self._logger.debug(f"token: {client_token.hex()}")
 
@@ -68,15 +70,12 @@ class ServerEndpoint(BaseEndpoint):
         ecps = wallet.psks.exchange(wallet.epkc)
         self._gen_secrets(ecps, eces)
 
-        for _ in range(self.max_packets):
-            self.__incoming_keys.append(self.__inc_mac.update(b"\x00" * 32))
-
-        buffer = self.__verify_and_decrypt(data)
+        buffer = self._verify_and_decrypt(data)
         if buffer is None:
             self._state = ConnectionState.ERROR
-            raise HandshakeError("Invalid handshake packet (missing protocol)")
+            raise HandshakeError("Invalid handshake packet")
 
-        messages = self.__reform_messages(buffer)
+        messages = self._reform_messages(buffer)
 
         if not messages:
             self._state = ConnectionState.ERROR

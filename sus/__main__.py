@@ -1,7 +1,17 @@
 import argparse
 import asyncio
 
-from sus.common.util import countdown, logger_config
+from sus.common.util import logger_config, countdown_async
+
+
+async def client_main(client):
+    await client.start()
+    if not client.connected:
+        print("Connection failed")
+        return
+    await countdown_async(5)
+    client.send(b"fuckyou" * 100)
+    await client.keep_alive()
 
 
 def main():
@@ -13,11 +23,7 @@ def main():
         client = SusClient((opts.server, int(opts.port)),
                            open(opts.public_key, "r").read().strip(),
                            opts.application_protocol.encode())
-        asyncio.run(client.start())
-        if not client.connected:
-            return
-        countdown(5)
-        client.send(b"fuckyou" * 100)
+        asyncio.run(client_main(client))
     else:
         from sus.server import SusServer
 

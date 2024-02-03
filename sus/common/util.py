@@ -1,7 +1,7 @@
 """
 Utility functions and classes.
 """
-
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -48,6 +48,18 @@ def countdown(sec: int):
         print(f"\r{sec} ", end="")
         sec -= 1
         sleep(1)
+    print("\r   ", end="")
+
+
+async def countdown_async(sec: int):
+    """
+    Countdown timer.
+    :param sec: number of seconds to count down from
+    """
+    while sec > 0:
+        print(f"\r{sec} ", end="")
+        sec -= 1
+        await asyncio.sleep(1)
     print("\r   ", end="")
 
 

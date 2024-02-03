@@ -46,33 +46,33 @@ class OnePortProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         connection_id = int.from_bytes(data[:4], "little", signed=False)
-        data = data[4:]
+        self.__logger.debug(f"{addr[0]}:{addr[1]}#{connection_id}: {len(data)} bytes")
+
         if not connection_id:
             try:
-                c = ServerEndpoint(addr, self.__transport, self.__wallet, self.__message_handlers,
-                                   async_send=self.__async_send)
+                c = ServerEndpoint(addr, self.__transport, self.__wallet, self.__message_handlers)
                 c.handle(data)
-            except (HandshakeError, MalformedPacket):
-                self.__logger.error(f"Handshake failed with {addr}")
+            except (HandshakeError, MalformedPacket) as e:
+                self.__logger.error(f"Handshake failed with {addr[0]}:{addr[1]}: {e}")
                 del c
                 return
 
             self.__clients[c.connection_id] = c
             return
 
-        try:
-            handler = self.__clients[connection_id]
-        except KeyError:
+        handler = self.__clients.get(connection_id, None)
+
+        if handler is None:
             self.__logger.error(f"Received packet from unknown connection ID {connection_id}")
             return
 
         try:
             handler.handle(data)
-        except HandshakeError:
-            self.__logger.error(f"Handshake failed with {addr}")
+        except HandshakeError as e:
+            self.__logger.error(f"Handshake failed with {addr[0]}:{addr[1]}#{connection_id}: {e}")
             del self.__clients[connection_id]
-        except MalformedPacket:
-            self.__logger.error(f"Malformed packet from {addr}")
+        except MalformedPacket as e:
+            self.__logger.error(f"Malformed packet from {addr[0]}:{addr[1]}#{connection_id}: {e}")
 
     def send(self, conn_id: ConnectionID, data: bytes):
         if conn_id not in self.__clients:

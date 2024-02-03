@@ -83,10 +83,10 @@ class SusServer:
         try:
             while not self.__protocol.closed.is_set():
                 await asyncio.sleep(SusServer.__GARBAGE_COLLECTOR_INTERVAL)
-                if not self.__protocol.has_clients:
-                    self.__logger.warning("No clients connected, shutting down")
-                    self.stop()
-                    return
+                # if not self.__protocol.has_clients:
+                #     self.__logger.warning("No clients connected, shutting down")
+                #     self.stop()
+                #     return
                 self.__logger.debug(f"{len(self.__protocol)} clients connected")
                 self.__protocol.clean()
         except asyncio.CancelledError:

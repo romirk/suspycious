@@ -72,7 +72,9 @@ class SusClient:
             lambda: SusClientProtocol(self.__addr, self.__ppks, self.__protocol_id, handlers),
             sock=sock), 5)
 
+        self.__logger.info(f"connecting to server ({self.__addr[0]}:{self.__addr[1]})...")
         await self.protocol.wait_for_connection()
+        self.__logger.info(f"connected to server ({self.__addr[0]}:{self.__addr[1]})")
 
     def send(self, data: bytes):
         """

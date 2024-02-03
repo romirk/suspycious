@@ -39,19 +39,19 @@ class SusClientProtocol(asyncio.DatagramProtocol):
 
     @property
     def is_connected(self):
-        if not hasattr(self, "__handler"):
+        try:
+            return self.__handler.state in (ConnectionState.CONNECTED, ConnectionState.HANDSHAKE)
+        except AttributeError:
             return False
-
-        return self.__handler.state in (ConnectionState.CONNECTED, ConnectionState.HANDSHAKE)
 
     async def wait_for_connection(self):
         for _ in range(5):
             await asyncio.sleep(1)
             if self.is_connected:
+                self.__logger.info("Connected to server")
                 return
-
         if not self.is_connected:
-            self.__logger.error("Connection timed out")
+            self.__logger.error(f"Connection timed out: {self.__handler.state}")
             self.disconnect()
 
     def connection_made(self, transport: asyncio.DatagramTransport):

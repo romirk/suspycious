@@ -45,12 +45,12 @@ class ClientEndpoint(BaseEndpoint):
                               wallet.epks.public_bytes(Encoding.Raw, PublicFormat.Raw) +
                               wallet.nc + wallet.ns).digest()
 
-        self.__con_id = self._gen_connection_id()
-        self.__state = ConnectionState.HANDSHAKE
+        self._con_id = self._gen_connection_id()
+        self._state = ConnectionState.HANDSHAKE
         self.send_now(self._app_id, wallet.token)
 
-        # we don't expect a respose from the server, so we can just go ahead and start the connection
-        self.__state = ConnectionState.CONNECTED
+        # we don't expect a response from the server, so we can just go ahead and start the connection
+        self._state = ConnectionState.CONNECTED
 
     def _handshake(self, data: bytes) -> None:
         # nothing to do in a handshake, this should never be called
